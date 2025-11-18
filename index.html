@@ -464,11 +464,15 @@
                 canvas.width = img.width;
                 canvas.height = img.height;
                 ctx.drawImage(img, 0, 0);
-                // 画像の中心ピクセルの色を取得
-                const pixelData = ctx.getImageData(Math.floor(img.width / 2), Math.floor(img.height / 2), 1, 1).data;
-                const hexColor = rgbToHex(pixelData[0], pixelData[1], pixelData[2]);
                 
-                document.getElementById('spineColorPicker').value = hexColor;
+                // ★★★ 修正: 例外処理を追加 ★★★
+                try {
+                    const pixelData = ctx.getImageData(Math.floor(img.width / 2), Math.floor(img.height / 2), 1, 1).data;
+                    const hexColor = rgbToHex(pixelData[0], pixelData[1], pixelData[2]);
+                    document.getElementById('spineColorPicker').value = hexColor;
+                } catch (e) {
+                    console.warn("Color extraction failed (getImageData error):", e);
+                }
             };
             img.onerror = function() {
                 // CORS エラーなどで失敗することがあるため、警告をコンソールに出すが、アラートは出さない
@@ -505,9 +509,16 @@
 
             // 3つのローディングスピナーを表示
             for (let i = 1; i <= 3; i++) {
-                document.getElementById(`loadingResult${i}`).classList.add('visible');
-                document.getElementById(`generatedImage${i}`).classList.add('hidden');
-                document.getElementById(`downloadButton${i}`).classList.add('hidden');
+                const loader = document.getElementById(`loadingResult${i}`);
+                const img = document.getElementById(`generatedImage${i}`);
+                const btn = document.getElementById(`downloadButton${i}`);
+
+                // ★★★ 修正: 表示状態を正しくリセット ★★★
+                loader.classList.remove('hidden');
+                loader.classList.add('visible');
+
+                img.classList.add('hidden');
+                btn.classList.add('hidden');
             }
             
             const spineColor = document.getElementById('spineColorPicker').value;
@@ -549,7 +560,8 @@
                 setImageResult(1, null); // Show error placeholder
                 setImageResult(2, null);
                 setImageResult(3, null);
-                showAlert("エラー", "表紙の生成中にエラーが発生しました。");
+                // APIエラーアラートはcallNanoBananaで出しているので、ここではアラートを出さない、または控えめにする
+                // showAlert("エラー", "表紙の生成中にエラーが発生しました。"); 
             } finally {
                 setLoadingState(false);
             }
@@ -681,7 +693,8 @@
 
         // サンプル画像ダウンロード機能
         async function downloadSampleCover(imageUrl, fileName) {
-            showAlert("情報", "サンプル画像をダウンロード中です...");
+            // ★★★ 修正: アラートを削除 ★★★
+            // showAlert("情報", "サンプル画像をダウンロード中です...");
             
             const img = new Image();
             if (imageUrl.startsWith('http')) {
@@ -716,8 +729,7 @@
                 link.click();
                 document.body.removeChild(link);
 
-                // アラートを閉じる
-                document.getElementById('alertOkButton').click();
+                // アラートのOKボタンを押す必要はもうありません
             };
 
             img.onerror = function(error) {
