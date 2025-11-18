@@ -143,29 +143,23 @@
                     <!-- ★★★ サンプルギャラリー (モックアップ) ★★★ -->
                     <p class="text-sm font-medium text-gray-600 mt-4 mb-2">またはサンプルから選択:</p>
                     <div class="sample-gallery">
-                        <!-- 
-                            ================================================================
-                            ★★★ GitHubリポジトリのサンプル画像パス (ここから) ★★★
-                            
-                            ↓ "index.html" と同じ階層に "samples/mockups/" フォルダを作り、
-                              "book1.png", "book2.png" などを配置してください。
-                              (パスやファイル名は自由に変更可能です)
-                            ================================================================
-                        -->
                         
-                        <!-- 以前アップロードした画像（1.png, 4.png）をデモ用サンプルとして追加 -->
-                        <!-- これらも index.html と同じ階層に配置する必要があります -->
-                        <img src="1.png" alt="サンプル 1 (白・斜め)" class="sample-img" onclick="loadSampleImage('1.png', 'bookShape')">
-                        <img src="3.png" alt="サンプル 3 (白・正面)" class="sample-img" onclick="loadSampleImage('3.png', 'bookShape')">
-                        <img src="4.png" alt="サンプル 4 (黒・斜め左)" class="sample-img" onclick="loadSampleImage('4.png', 'bookShape')">
-                        <img src="5.png" alt="サンプル 5 (黒・斜め右)" class="sample-img" onclick="loadSampleImage('5.png', 'bookShape')">
-                        <img src="6.png" alt="サンプル 6 (黒・正面)" class="sample-img" onclick="loadSampleImage('6.png', 'bookShape')">
-                        <img src="2.png" alt="サンプル 2 (白・別角度)" class="sample-img" onclick="loadSampleImage('2.png', 'bookShape')">
-                        <!-- 
-                            ================================================================
-                            ★★★ GitHubリポジトリのサンプル画像パス (ここまで) ★★★
-                            ================================================================
-                        -->
+                        <!-- ★★★ 修正: GitHubのパスをハードコード ★★★ -->
+                        
+                        <img src="./samples/mockups/1.png" alt="サンプル モックアップ 1" class="sample-img" 
+                             onerror="this.src='https://placehold.co/80x80/cccccc/ffffff?text=1.png'; this.onerror=null;"
+                             onclick="loadSampleImage('./samples/mockups/1.png', 'bookShape')">
+                        
+                        <img src="./samples/mockups/2.png" alt="サンプル モックアップ 2" class="sample-img" 
+                             onerror="this.src='https://placehold.co/80x80/cccccc/ffffff?text=2.png'; this.onerror=null;"
+                             onclick="loadSampleImage('./samples/mockups/2.png', 'bookShape')">
+                        
+                        <img src="./samples/mockups/3.png" alt="サンプル モックアップ 3" class="sample-img" 
+                             onerror="this.src='https://placehold.co/80x80/cccccc/ffffff?text=3.png'; this.onerror=null;"
+                             onclick="loadSampleImage('./samples/mockups/3.png', 'bookShape')">
+                        
+                        <!-- ★★★ 修正: 追加例のコメントを削除 ★★★ -->
+
                     </div>
                 </div>
 
@@ -175,9 +169,6 @@
                         ② 表紙にしたい画像
                     </h3>
                     
-                    <!-- ★★★ Canvaボタン (削除) ★★★ -->
-                    <!-- (ギャラリー内に移動) -->
-
                     <!-- アップロードボタン -->
                     <label for="coverImageUploader" class="dashed-border rounded-lg p-6 flex flex-col items-center justify-center cursor-pointer preview-box">
                         <input type="file" id="coverImageUploader" accept="image/*" class="hidden" onchange="handleImageUpload(event, 'coverImage')">
@@ -189,24 +180,7 @@
                     <p class="text-sm font-medium text-gray-600 mt-4 mb-2">またはサンプルから選択 (↓ ダウンロード可):</p>
                     <div class="sample-gallery">
                         
-                        <!-- ★★★ 順序変更 ★★★ -->
-                        <!-- 
-                            ================================================================
-                            ★★★ GitHubリポジトリのサンプル画像パス (ここから) ★★★
-                            ================================================================
-                        -->
-                        
-                        <!-- プレースホルダーのサンプル 1 (これだけ残す) -->
-                        <div class="sample-item-container">
-                            <img src="https://placehold.co/100x100/e81c1c/white?text=A" alt="サンプル 表紙 A" class="sample-img" 
-                                 onclick="loadSampleImage('https://placehold.co/400x600/e81c1c/white?text=Sample+A', 'coverImage')">
-                            <div onclick="downloadSampleCover('https://placehold.co/400x600/e81c1c/white?text=Sample+A', 'sample-A.png')"
-                               class="sample-download-btn" title="ダウンロード">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                            </div>
-                        </div>
-
-                        <!-- ★★★ Canvaボタン (リンクとテキストを修正) ★★★ -->
+                        <!-- ★★★ Canvaボタン ★★★ -->
                         <a href="https://www.canva.com/design/DAG5BYpPzZA/-62qZNLh2dCVPF_N6tN4iw/edit" target="_blank" rel="noopener noreferrer"
                            class="flex-shrink-0 flex flex-col items-center justify-center w-20 h-20 bg-purple-600 text-white rounded-lg shadow hover:bg-purple-700 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-400 p-2 text-center"
                            title="Canvaテンプレートを編集">
@@ -214,22 +188,19 @@
                             <span class="text-xs font-medium leading-tight">Canva テンプレート</span>
                         </a>
 
-                        <!-- 
-                            ローカルパスの例 (ダウンロードボタン付):
-                            <div class="sample-item-container">
-                                <img src="./samples/covers/cover1.png" alt="サンプル 表紙 1" class="sample-img" 
-                                     onclick="loadSampleImage('./samples/covers/cover1.png', 'coverImage')">
-                                <div onclick="downloadSampleCover('./samples/covers/cover1.png', 'cover1.png')"
-                                   class="sample-download-btn" title="ダウンロード">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                                </div>
+                        <!-- ★★★ 修正: GitHubのパスをハードコード ★★★ -->
+                        <div class="sample-item-container">
+                            <img src="./samples/covers/hinagata.jpg" alt="サンプル 表紙 雛形" class="sample-img" 
+                                 onerror="this.src='https://placehold.co/80x80/cccccc/ffffff?text=hinagata.jpg'; this.onerror=null;"
+                                 onclick="loadSampleImage('./samples/covers/hinagata.jpg', 'coverImage')">
+                            <div onclick="downloadSampleCover('./samples/covers/hinagata.jpg', 'hinagata.jpg')"
+                               class="sample-download-btn" title="ダウンロード">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                             </div>
-                        -->
-                        <!-- 
-                            ================================================================
-                            ★★★ GitHubリポジトリのサンプル画像パス (ここまで) ★★★
-                            ================================================================
-                        -->
+                        </div>
+                        
+                        <!-- ★★★ 修正: 追加例のコメントを削除 ★★★ -->
+
                     </div>
                 </div>
             </div>
@@ -446,7 +417,8 @@
             if (imageUrl.startsWith('https://placehold.co')) {
                  img.src = imageUrl + (imageUrl.includes('?') ? '&' : '?') + new Date().getTime();
             } else {
-                 img.src = imageUrl;
+                 // ★★★ 修正: ローカルファイルもキャッシュを回避 ★★★
+                 img.src = imageUrl + '?' + new Date().getTime();
             }
         }
 
@@ -516,7 +488,8 @@
             if (src.startsWith('https://placehold.co')) {
                  img.src = src + (src.includes('?') ? '&' : '?') + new Date().getTime();
             } else {
-                 img.src = src;
+                 // ★★★ 修正: ローカルファイルもキャッシュを回避 ★★★
+                 img.src = src + (src.includes('?') ? '?' : '&') + new Date().getTime();
             }
         }
         // ボタンクリックでも色抽出を実行
@@ -746,7 +719,8 @@
             if (imageUrl.startsWith('https://placehold.co')) {
                  img.src = imageUrl + (imageUrl.includes('?') ? '&' : '?') + new Date().getTime();
             } else {
-                 img.src = imageUrl;
+                 // ★★★ 修正: ローカルファイルもキャッシュを回避 ★★★
+                 img.src = imageUrl + '?' + new Date().getTime();
             }
         }
 
