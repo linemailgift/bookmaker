@@ -416,8 +416,9 @@
                 showAlert("エラー", `サンプル画像 (${imageUrl}) の読み込みに失敗しました。`);
             };
 
-            // ★★★ 修正: キャッシュ回避のクエリ文字列を削除 ★★★
-            img.src = imageUrl;
+            // ★★★ 修正: キャッシュ回避のクエリ文字列を（ローカルファイルに）追加 ★★★
+            // (さっきまで動いていた状態に戻す)
+            img.src = imageUrl + '?' + new Date().getTime();
         }
 
         // 画像セットアップ共通関数
@@ -478,8 +479,14 @@
                 console.warn("Color extraction failed. This might be due to CORS or the image not being ready.");
             };
             
-            // ★★★ 修正: キャッシュ回避のクエリ文字列を削除 ★★★
-            img.src = src;
+            // ★★★ 修正: キャッシュ回避のロジックを（さっきまで動いていた状態に）戻す ★★★
+            if (src.startsWith('data:')) {
+                img.src = src;
+            } else if (src.startsWith('https://placehold.co')) {
+                 img.src = src + (src.includes('?') ? '&' : '?') + new Date().getTime();
+            } else {
+                 img.src = src + '?' + new Date().getTime();
+            }
         }
         // ボタンクリックでも色抽出を実行
         pickColorButton.onclick = () => extractCoverColor(document.getElementById('coverImagePreview').src);
@@ -503,7 +510,7 @@
             
             const spineColor = document.getElementById('spineColorPicker').value;
 
-            // ★★★ 修正: プロンプトを英語に変更 ★★★
+            // ★★★ 修正: プロンプトは英語のまま ★★★
             const basePrompt = `
                 Generate a realistic hardcover book that maintains the exact same shape, angle, lighting, shadow, and texture as the first input image (the book shape).
                 Apply the second input image (the cover design) to the entire front cover of the book. The image should be scaled (and cropped if necessary) to cover the entire cover while maintaining its aspect ratio.
@@ -559,7 +566,8 @@
                 btn.classList.add('hidden');
             }
             loader.classList.remove('visible');
-$            loader.classList.add('hidden');
+            // ★★★ 修正: `$` を削除 ★★★
+            loader.classList.add('hidden');
         }
 
         // ローディング状態の切り替え
@@ -701,8 +709,12 @@ $            loader.classList.add('hidden');
                 showAlert("エラー", `サンプル画像 (${imageUrl}) のダウンロードに失敗しました。`);
             };
 
-            // ★★★ 修正: キャッシュ回避のクエリ文字列を削除 ★★★
-            img.src = imageUrl;
+            // ★★★ 修正: キャッシュ回避のロジックを（さっきまで動いていた状態に）戻す ★★★
+            if (imageUrl.startsWith('https://placehold.co')) {
+                 img.src = imageUrl + (imageUrl.includes('?') ? '&' : '?') + new Date().getTime();
+            } else {
+                 img.src = imageUrl + '?' + new Date().getTime();
+            }
         }
 
     </script>
