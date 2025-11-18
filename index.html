@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- タイトルを変更 -->
+    <title>ちいくじ表紙メーカー</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+            background-color: #f0f4f8;
+            color: #2d3748;
+        }
+        /* 破線のボーダー */
+        .dashed-border {
+            border: 2px dashed #cbd5e0;
+            transition: border-color 0.3s, background-color 0.3s;
+        }
+        .dashed-border:hover {
+            border-color: #4299e1;
+            background-color: #fcfdff;
+        }
+        /* スピナー */
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #09f;
+            animation: spin 1s ease infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* 画像プレビューのコンテナ */
+        .preview-box {
+            min-height: 150px;
+        }
+        /* ローディングオーバーレイ */
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+        .loading-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        .result-card {
+            position: relative;
+            min-height: 200px;
+        }
+        /* ★★★ サンプル画像用のスタイル ★★★ */
+        .sample-gallery {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding: 8px;
+            background-color: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        .sample-img {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 4px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: border-color 0.2s, transform 0.2s;
+        }
+        .sample-img:hover {
+            border-color: #4299e1;
+            transform: scale(1.05);
+        }
+        /* ★★★ サンプルダウンロードボタン用スタイル (追加) ★★★ */
+        .sample-item-container {
+            position: relative;
+            flex-shrink: 0; /* ギャラリーが縮まないように */
+        }
+        .sample-download-btn {
+            position: absolute;
+            bottom: 4px;
+            right: 4px;
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            border-radius: 50%;
+            padding: 2px;
+            transition: background-color 0.2s;
+            cursor: pointer;
+        }
+        .sample-download-btn:hover {
+            background-color: rgba(0, 0, 0, 0.9);
+        }
+    </style>
+</head>
+<body class="p-8">
+
+    <header class="text-center mb-12">
+        <!-- ヘッダータイトルを変更 -->
+        <h1 class="text-5xl font-extrabold text-blue-700 mb-4">
+            ちいくじ表紙メーカー
+        </h1>
+        <p class="text-xl text-gray-600">
+            2枚の画像をアップロード（またはサンプルから選択）し、背表紙の色を指定して3種類の表紙を生成します。
+        </p>
+    </header>
+
+    <main class="max-w-6xl mx-auto bg-white p-8 rounded-lg shadow-xl">
+
+        <!-- 1. 画像アップロードセクション -->
+        <section class="mb-10">
+            <h2 class="text-3xl font-semibold text-gray-800 mb-4 text-center">
+                1. 2枚の画像を選択
+            </h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                
+                <!-- アップロードエリア 1: 本の形 -->
+                <div>
+                    <h3 class="text-xl font-semibold text-gray-700 mb-4 text-center">
+                        ① 本の形 (モックアップ)
+                    </h3>
+                    <!-- アップロードボタン -->
+                    <label for="bookShapeUploader" class="dashed-border rounded-lg p-6 flex flex-col items-center justify-center cursor-pointer preview-box">
+                        <input type="file" id="bookShapeUploader" accept="image/*" class="hidden" onchange="handleImageUpload(event, 'bookShape')">
+                        <img id="bookShapePreview" src="" alt="本の形のプレビュー" class="max-h-48 rounded hidden mb-4">
+                        <svg class="w-12 h-12 text-gray-400 mb-2" id="bookShapeIcon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                        <span class="text-gray-500" id="bookShapeText">クリックして画像を選択</span>
+                    </label>
+                    <!-- ★★★ サンプルギャラリー (モックアップ) ★★★ -->
+                    <p class="text-sm font-medium text-gray-600 mt-4 mb-2">またはサンプルから選択:</p>
+                    <div class="sample-gallery">
+                        <!-- 
+                            ================================================================
+                            ★★★ GitHubリポジトリのサンプル画像パス (ここから) ★★★
+                            
+                            ↓ "index.html" と同じ階層に "samples/mockups/" フォルダを作り、
+                              "book1.png", "book2.png" などを配置してください。
+                              (パスやファイル名は自由に変更可能です)
+                            ================================================================
+                        -->
+                        
+                        <!-- 以前アップロードした画像（1.png, 4.png）をデモ用サンプルとして追加 -->
+                        <!-- これらも index.html と同じ階層に配置する必要があります -->
+                        <img src="1.png" alt="サンプル 1 (白・斜め)" class="sample-img" onclick="loadSampleImage('1.png', 'bookShape')">
+                        <img src="3.png" alt="サンプル 3 (白・正面)" class="sample-img" onclick="loadSampleImage('3.png', 'bookShape')">
+                        <img src="4.png" alt="サンプル 4 (黒・斜め左)" class="sample-img" onclick="loadSampleImage('4.png', 'bookShape')">
+                        <img src="5.png" alt="サンプル 5 (黒・斜め右)" class="sample-img" onclick="loadSampleImage('5.png', 'bookShape')">
+                        <img src="6.png" alt="サンプル 6 (黒・正面)" class="sample-img" onclick="loadSampleImage('6.png', 'bookShape')">
+                        <img src="2.png" alt="サンプル 2 (白・別角度)" class="sample-img" onclick="loadSampleImage('2.png', 'bookShape')">
+                        <!-- 
+                            ================================================================
+                            ★★★ GitHubリポジトリのサンプル画像パス (ここまで) ★★★
+                            ================================================================
+                        -->
+                    </div>
+                </div>
+
+                <!-- アップロードエリア 2: 表紙にしたい画像 -->
+                <div>
+                    <h3 class="text-xl font-semibold text-gray-700 mb-4 text-center">
+                        ② 表紙にしたい画像
+                    </h3>
+                    
+                    <!-- ★★★ Canvaボタン (削除) ★★★ -->
+                    <!-- (ギャラリー内に移動) -->
+
+                    <!-- アップロードボタン -->
+                    <label for="coverImageUploader" class="dashed-border rounded-lg p-6 flex flex-col items-center justify-center cursor-pointer preview-box">
+                        <input type="file" id="coverImageUploader" accept="image/*" class="hidden" onchange="handleImageUpload(event, 'coverImage')">
+                        <img id="coverImagePreview" src="" alt="表紙画像のプレビュー" class="max-h-48 rounded hidden mb-4">
+                        <svg class="w-12 h-12 text-gray-400 mb-2" id="coverImageIcon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                        <span class="text-gray-500" id="coverImageText">クリックして画像を選択</span>
+                    </label>
+                    <!-- ★★★ サンプルギャラリー (表紙) - Canvaボタンとダウンロードボタン追加 ★★★ -->
+                    <p class="text-sm font-medium text-gray-600 mt-4 mb-2">またはサンプルから選択 (↓ ダウンロード可):</p>
+                    <div class="sample-gallery">
+                        
+                        <!-- ★★★ 順序変更 ★★★ -->
+                        <!-- 
+                            ================================================================
+                            ★★★ GitHubリポジトリのサンプル画像パス (ここから) ★★★
+                            ================================================================
+                        -->
+                        
+                        <!-- プレースホルダーのサンプル 1 (これだけ残す) -->
+                        <div class="sample-item-container">
+                            <img src="https://placehold.co/100x100/e81c1c/white?text=A" alt="サンプル 表紙 A" class="sample-img" 
+                                 onclick="loadSampleImage('https://placehold.co/400x600/e81c1c/white?text=Sample+A', 'coverImage')">
+                            <div onclick="downloadSampleCover('https://placehold.co/400x600/e81c1c/white?text=Sample+A', 'sample-A.png')"
+                               class="sample-download-btn" title="ダウンロード">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            </div>
+                        </div>
+
+                        <!-- ★★★ Canvaボタン (リンクとテキストを修正) ★★★ -->
+                        <a href="https://www.canva.com/design/DAG5BYpPzZA/-62qZNLh2dCVPF_N6tN4iw/edit" target="_blank" rel="noopener noreferrer"
+                           class="flex-shrink-0 flex flex-col items-center justify-center w-20 h-20 bg-purple-600 text-white rounded-lg shadow hover:bg-purple-700 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-400 p-2 text-center"
+                           title="Canvaテンプレートを編集">
+                            <svg class="w-6 h-6 mb-1" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                            <span class="text-xs font-medium leading-tight">Canva テンプレート</span>
+                        </a>
+
+                        <!-- 
+                            ローカルパスの例 (ダウンロードボタン付):
+                            <div class="sample-item-container">
+                                <img src="./samples/covers/cover1.png" alt="サンプル 表紙 1" class="sample-img" 
+                                     onclick="loadSampleImage('./samples/covers/cover1.png', 'coverImage')">
+                                <div onclick="downloadSampleCover('./samples/covers/cover1.png', 'cover1.png')"
+                                   class="sample-download-btn" title="ダウンロード">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                </div>
+                            </div>
+                        -->
+                        <!-- 
+                            ================================================================
+                            ★★★ GitHubリポジトリのサンプル画像パス (ここまで) ★★★
+                            ================================================================
+                        -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 1.5. 背表紙の色選択 -->
+        <section class="mb-10 text-center">
+            <h2 class="text-3xl font-semibold text-gray-800 mb-6">
+                2. 背表紙の色を選択
+            </h2>
+            <div class="flex items-center justify-center gap-4 p-4 bg-gray-50 rounded-lg max-w-md mx-auto shadow-inner">
+                <label for="spineColorPicker" class="font-medium text-gray-700">希望の色:</label>
+                <input type="color" id="spineColorPicker" value="#CCCCCC" class="w-16 h-10 p-1 border rounded-lg cursor-pointer shadow-sm">
+                <button id="pickColorButton" class="px-4 py-2 bg-blue-500 text-white rounded-lg shadow hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    表紙から色を抽出
+                </button>
+            </div>
+            <p class="text-sm text-gray-500 mt-2">
+                ②で画像をアップロード(または選択)すると自動で色が抽出されます。(再抽出も可)
+            </p>
+        </section>
+
+        <!-- 2. (改め 3.) 合成スタートボタン -->
+        <section class="mb-10 text-center">
+            <h2 class="text-3xl font-semibold text-gray-800 mb-6">
+                3. 合成スタート
+            </h2>
+            <button id="generateButton" onclick="generateCovers()" class="inline-flex items-center px-10 py-4 bg-gradient-to-r from-green-500 to-teal-600 text-white font-bold rounded-full shadow-lg hover:from-green-600 hover:to-teal-700 focus:outline-none focus:ring-4 focus:ring-green-300 transition-all duration-300 transform hover:scale-105 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                <svg class="w-6 h-6 mr-3 animate-spin hidden" id="loadingSpinnerIcon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2.086A10.001 10.001 0 0112 22a10 10 0 01-10-10 10 10 0 0110-10c2.79 0 5.378.932 7.373 2.503m-3.865 1.257A5 5 0 0012 5a5 5 0 00-5 5 5 5 0 005 5c1.378 0 2.628-.56 3.536-1.464M12 12h.01"></path>
+                </svg>
+                <span id="generateButtonText">合成スタート (3種類)</span>
+            </button>
+            <p id="loadingMessage" class="text-gray-600 mt-4 hidden">
+                3種類の表紙を生成中です。数分かかる場合があります...
+            </p>
+            <p class="text-sm text-gray-500 mt-2">
+                やり直しをすることで、違う画像が改めて生成されます。
+            </p>
+        </section>
+
+        <!-- 3. (改め 4.) 生成結果 -->
+        <section id="resultSection" class="hidden">
+            <h2 class="text-3xl font-semibold text-gray-800 mb-8 text-center">
+                4. 生成された本の表紙
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                
+                <!-- 結果 1 -->
+                <div class="p-4 bg-gray-50 rounded-lg shadow-md result-card">
+                    <div class="loading-overlay visible" id="loadingResult1">
+                        <div class="spinner"></div>
+                    </div>
+                    <img src="" alt="合成された本の表紙 1" class="w-full h-auto rounded hidden" id="generatedImage1"
+                         onerror="this.src='https://placehold.co/400x400/f87171/ffffff?text=Error'; this.onerror=null; this.classList.remove('hidden'); document.getElementById('loadingResult1').classList.add('hidden');">
+                    <p class="text-center font-medium mt-2">① 指定色</p>
+                    <div class="text-center mt-4">
+                        <button onclick="downloadGeneratedCover(1)" id="downloadButton1" class="inline-flex items-center px-6 py-2 bg-green-500 text-white font-semibold rounded-full hover:bg-green-600 transition-colors shadow-md hidden">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l3-3m-3 3l-3-3m2-8a9 9 0 110 18 9 9 0 010-18z"></path></svg>
+                            ダウンロード
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 結果 2 -->
+                <div class="p-4 bg-gray-50 rounded-lg shadow-md result-card">
+                    <div class="loading-overlay visible" id="loadingResult2">
+                        <div class="spinner"></div>
+                    </div>
+                    <img src="" alt="合成された本の表紙 2" class="w-full h-auto rounded hidden" id="generatedImage2"
+                         onerror="this.src='https://placehold.co/400x400/f87171/ffffff?text=Error'; this.onerror=null; this.classList.remove('hidden'); document.getElementById('loadingResult2').classList.add('hidden');">
+                    <p class="text-center font-medium mt-2">② 補色 (AI選択)</p>
+                    <div class="text-center mt-4">
+                        <button onclick="downloadGeneratedCover(2)" id="downloadButton2" class="inline-flex items-center px-6 py-2 bg-green-500 text-white font-semibold rounded-full hover:bg-green-600 transition-colors shadow-md hidden">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l3-3m-3 3l-3-3m2-8a9 9 0 110 18 9 9 0 010-18z"></path></svg>
+                            ダウンロード
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 結果 3 -->
+                <div class="p-4 bg-gray-50 rounded-lg shadow-md result-card">
+                    <div class="loading-overlay visible" id="loadingResult3">
+                        <div class="spinner"></div>
+                    </div>
+                    <img src="" alt="合成された本の表紙 3" class="w-full h-auto rounded hidden" id="generatedImage3"
+                         onerror="this.src='https://placehold.co/400x400/f87171/ffffff?text=Error'; this.onerror=null; this.classList.remove('hidden'); document.getElementById('loadingResult3').classList.add('hidden');">
+                    <p class="text-center font-medium mt-2">③ 類似色 (AI選択)</p>
+                    <div class="text-center mt-4">
+                        <button onclick="downloadGeneratedCover(3)" id="downloadButton3" class="inline-flex items-center px-6 py-2 bg-green-500 text-white font-semibold rounded-full hover:bg-green-600 transition-colors shadow-md hidden">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l3-3m-3 3l-3-3m2-8a9 9 0 110 18 9 9 0 010-18z"></path></svg>
+                            ダウンロード
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+    </main>
+
+    <footer class="mt-12 text-center text-gray-500 text-sm">
+        <p>ちいくじ表紙メーカー &copy; 2025</p>
+        <p class="mt-2 text-xs">
+            注意: このアプリは nanobanana (gemini-2.5-flash-image-preview) API を使用して画像を生成します。
+        </p>
+    </footer>
+
+    <!-- カスタムアラート（モーダル） -->
+    <div id="customAlert" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center hidden" style="z-index: 50;">
+        <div class="relative mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div class="mt-3 text-center">
+                <h3 class="text-lg leading-6 font-medium text-gray-900" id="alertTitle"></h3>
+                <div class="mt-2 px-7 py-3">
+                    <p class="text-sm text-gray-500" id="alertMessage"></p>
+                </div>
+                <div class="items-center px-4 py-3">
+                    <button id="alertOkButton" class="px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                        OK
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // アップロードされた画像のbase64データを保持する変数
+        let bookShapeBase64 = null;
+        let coverImageBase64 = null;
+        let isGenerating = false; // 生成中フラグ
+
+        const generateButton = document.getElementById('generateButton');
+        const loadingSpinnerIcon = document.getElementById('loadingSpinnerIcon');
+        const generateButtonText = document.getElementById('generateButtonText');
+        const loadingMessage = document.getElementById('loadingMessage');
+        const resultSection = document.getElementById('resultSection');
+        const pickColorButton = document.getElementById('pickColorButton');
+        
+        // カスタムアラート表示
+        function showAlert(title, message) {
+            document.getElementById('alertTitle').textContent = title;
+            document.getElementById('alertMessage').textContent = message;
+            document.getElementById('customAlert').classList.remove('hidden');
+        }
+        // カスタムアラート非表示
+        document.getElementById('alertOkButton').onclick = function() {
+            document.getElementById('customAlert').classList.add('hidden');
+        }
+
+        // 1. 画像アップロード処理 (共通)
+        function handleImageUpload(event, type) {
+            const files = event.target.files;
+            if (files.length === 0) return;
+
+            const file = files[0];
+            if (file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const base64Data = e.target.result.split(',')[1]; // base64データ部分
+                    const dataUrl = e.target.result; // Data URL
+
+                    setUploadedImage(type, dataUrl, base64Data, file.name);
+                };
+                reader.onerror = function(error) {
+                    console.error("File reading error:", error);
+                    showAlert("エラー", "画像の読み込みに失敗しました。");
+                };
+                reader.readAsDataURL(file);
+            } else {
+                showAlert("エラー", "画像ファイルを選択してください。");
+            }
+        }
+
+        // ★★★ 修正: サンプル画像読み込み関数 (fetchを削除し、Image/Canvasを使用) ★★★
+        async function loadSampleImage(imageUrl, type) {
+            const img = new Image();
+            
+            // placehold.co のような外部画像のためにCORS設定
+            if (imageUrl.startsWith('http')) {
+                img.crossOrigin = "Anonymous";
+            }
+
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+                
+                let dataUrl;
+                let base64Data;
+                try {
+                    // PNGをデフォルトにする
+                    dataUrl = canvas.toDataURL('image/png');
+                    base64Data = dataUrl.split(',')[1];
+                } catch (e) {
+                    // toDataURLが失敗するケース（e.g., tainted canvas from CORS）
+                    console.error("Canvas toDataURL error:", e);
+                    showAlert("エラー", "サンプル画像の読み込みに失敗しました (Canvas Error)。");
+                    return;
+                }
+                
+                const fileName = imageUrl.split('/').pop(); // ファイル名を取得
+                // 既存のセットアップ関数を流用
+                setUploadedImage(type, dataUrl, base64Data, `(サンプル) ${fileName}`);
+            };
+
+            img.onerror = function(error) {
+                console.error(`Error loading sample image from src: ${imageUrl}`, error);
+                showAlert("エラー", `サンプル画像 (${imageUrl}) の読み込みに失敗しました。`);
+            };
+
+            // placehold.co の場合はキャッシュを回避（CORS/Taint対策）
+            if (imageUrl.startsWith('https://placehold.co')) {
+                 img.src = imageUrl + (imageUrl.includes('?') ? '&' : '?') + new Date().getTime();
+            } else {
+                 img.src = imageUrl;
+            }
+        }
+
+        // ★★★ 新規追加: 画像セットアップ共通関数 ★★★
+        // (アップロードとサンプル読み込みの両方から呼ばれる)
+        function setUploadedImage(type, dataUrl, base64Data, fileName) {
+            if (type === 'bookShape') {
+                bookShapeBase64 = base64Data;
+                document.getElementById('bookShapePreview').src = dataUrl;
+                document.getElementById('bookShapePreview').classList.remove('hidden');
+                document.getElementById('bookShapeIcon').classList.add('hidden');
+                document.getElementById('bookShapeText').textContent = fileName;
+            } else if (type === 'coverImage') {
+                coverImageBase64 = base64Data;
+                document.getElementById('coverImagePreview').src = dataUrl;
+                document.getElementById('coverImagePreview').classList.remove('hidden');
+                document.getElementById('coverImageIcon').classList.add('hidden');
+                document.getElementById('coverImageText').textContent = fileName;
+                
+                // 色抽出ボタンを有効化し、自動で色を抽出
+                pickColorButton.disabled = false;
+                extractCoverColor(dataUrl);
+            }
+            
+            // 両方の画像がセットされたらボタンを有効化
+            if (bookShapeBase64 && coverImageBase64) {
+                generateButton.disabled = false;
+            }
+        }
+        
+        // 1.5. 表紙画像から色を抽出する関数
+        function componentToHex(c) {
+            var hex = c.toString(16);
+            return hex.length == 1 ? "0" + hex : hex;
+        }
+        function rgbToHex(r, g, b) {
+            return "#" + componentToHex(r) + componentToHex(g) + componentToHex(b);
+        }
+
+        function extractCoverColor(dataUrl) {
+            const src = dataUrl || document.getElementById('coverImagePreview').src;
+            if (!src) {
+                showAlert("情報", "先に「② 表紙にしたい画像」をアップロード（または選択）してください。");
+                return;
+            }
+            const img = new Image();
+            // ★★★ CORS設定を追加 ★★★ (placehold.co のような外部画像の色抽出に必要)
+            img.crossOrigin = "Anonymous";
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+                // 画像の中心ピクセルの色を取得
+                const pixelData = ctx.getImageData(Math.floor(img.width / 2), Math.floor(img.height / 2), 1, 1).data;
+                const hexColor = rgbToHex(pixelData[0], pixelData[1], pixelData[2]);
+                
+                document.getElementById('spineColorPicker').value = hexColor;
+            };
+            img.onerror = function() {
+                console.warn("Color extraction failed. This might be due to CORS or the image not being ready.");
+                // CORSエラーはコンソールに自動で記録されるため、ここではアラートを出さない
+            };
+            
+            // placehold.co からの画像の場合、タイムスタンプを追加してキャッシュを回避（CORSエラー対策）
+            if (src.startsWith('https://placehold.co')) {
+                 img.src = src + (src.includes('?') ? '&' : '?') + new Date().getTime();
+            } else {
+                 img.src = src;
+            }
+        }
+        // ボタンクリックでも色抽出を実行
+        pickColorButton.onclick = () => extractCoverColor(document.getElementById('coverImagePreview').src);
+
+        // 2. (改め 3.) 表紙生成のメイン関数
+        async function generateCovers() {
+            if (!bookShapeBase64 || !coverImageBase64) {
+                showAlert("エラー", "「本の形」と「表紙にしたい画像」の両方をアップロード（または選択）してください。");
+                return;
+            }
+            if (isGenerating) return; // 生成中は二重実行を防ぐ
+
+            setLoadingState(true);
+            resultSection.classList.remove('hidden');
+
+            // 3つのローディングスピナーを表示
+            for (let i = 1; i <= 3; i++) {
+                document.getElementById(`loadingResult${i}`).classList.add('visible');
+                document.getElementById(`generatedImage${i}`).classList.add('hidden');
+                document.getElementById(`downloadButton${i}`).classList.add('hidden');
+            }
+            
+            const spineColor = document.getElementById('spineColorPicker').value;
+
+            // 3種類のプロンプトを生成
+            const basePrompt = `
+                入力された1枚目の画像（本の形）と全く同じ形状、角度、ライティング、影、テクスチャを維持したリアルなハードカバー本を生成してください。
+                入力された2枚目の画像（表紙のデザイン）を、本の表紙全体に適用してください。画像は縦横比を維持したまま、カバー全体を覆うように拡大縮小（必要に応じてトリミング）してください。
+                最終的な画像の背景は、純粋な白一色（#FFFFFF）にしてください。
+            `;
+            
+            const prompts = [
+                // 1. 指定色
+                `${basePrompt} 背表紙の色は、指定された色 (${spineColor}) にしてください。`,
+                // 2. 補色
+                `${basePrompt} 背表紙の色は、表紙のデザインと調和する「補色 (complementary color)」をAIが自動で選択してください。`,
+                // 3. 類似色
+                `${basePrompt} 背表紙の色は、表紙のデザインと調和する「類似色 (analogous color)」をAIが自動で選択してください。`
+            ];
+
+            try {
+                // 3つのAPIコールを並行実行
+                const promises = prompts.map(prompt => 
+                    callNanoBanana(prompt, coverImageBase64, bookShapeBase64)
+                );
+                
+                const [imgUrl1, imgUrl2, imgUrl3] = await Promise.all(promises);
+
+                // 結果をセット
+                setImageResult(1, imgUrl1);
+                setImageResult(2, imgUrl2);
+                setImageResult(3, imgUrl3);
+
+                showAlert("成功", "3種類の表紙が生成されました！");
+                
+            } catch (error) {
+                console.error("Error generating covers:", error);
+                setImageResult(1, null); // Show error placeholder
+                setImageResult(2, null);
+                setImageResult(3, null);
+                showAlert("エラー", "表紙の生成中にエラーが発生しました。");
+            } finally {
+                setLoadingState(false);
+            }
+        }
+
+        // 生成結果をセットするヘルパー関数
+        function setImageResult(index, imageUrl) {
+            const loader = document.getElementById(`loadingResult${index}`);
+            const img = document.getElementById(`generatedImage${index}`);
+            const btn = document.getElementById(`downloadButton${index}`);
+            
+            if (imageUrl) {
+                img.src = imageUrl;
+                img.classList.remove('hidden');
+                btn.classList.remove('hidden');
+            } else {
+                img.src = `https://placehold.co/400x400/f87171/ffffff?text=Error+${index}`;
+                img.classList.remove('hidden');
+                btn.classList.add('hidden'); // エラー時はダウンロードさせない
+            }
+            loader.classList.remove('visible'); // スピナーを隠す
+            loader.classList.add('hidden');
+        }
+
+        // ローディング状態の切り替え
+        function setLoadingState(isLoading) {
+            isGenerating = isLoading;
+            generateButton.disabled = isLoading;
+            loadingMessage.classList.toggle('hidden', !isLoading);
+            loadingSpinnerIcon.classList.toggle('hidden', !isLoading);
+            generateButtonText.textContent = isLoading ? "生成中..." : "合成スタート (3種類)";
+        }
+
+        // 3. nanobanana API呼び出し関数
+        async function callNanoBanana(prompt, coverImageBase64, bookShapeBase64) {
+            const payload = {
+                contents: [{
+                    parts: [
+                        { text: prompt },
+                        { inlineData: { mimeType: "image/png", data: bookShapeBase64 } }, // 1枚目: 本の形
+                        { inlineData: { mimeType: "image/png", data: coverImageBase64 } }  // 2枚目: 表紙デザイン
+                    ]
+                }],
+                generationConfig: {
+                    responseModalities: ['IMAGE']
+                },
+            };
+            
+            const apiKey = "";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`;
+            
+            let response;
+            let retries = 3;
+            let delay = 1000;
+
+            while (retries > 0) {
+                try {
+                    response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (response.ok) {
+                        const result = await response.json();
+                        const base64Data = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+                        
+                        if (base64Data) {
+                            return `data:image/png;base64,${base64Data}`;
+                        } else {
+                            console.warn("API succeeded but no image data received.", result);
+                            retries = 0;
+                            return null;
+                        }
+                    } else if (response.status === 429 || response.status >= 500) {
+                        console.warn(`API request failed with status ${response.status}. Retrying in ${delay}ms...`);
+                    } else {
+                        console.error(`API request failed with status ${response.status}.`);
+                        retries = 0;
+                        return null;
+                    }
+                } catch (error) {
+                    console.warn(`Fetch error: ${error.message}. Retrying in ${delay}ms...`);
+                }
+
+                retries--;
+                if (retries > 0) {
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    delay *= 2;
+                }
+            }
+            
+            console.error("Failed to generate image after retries.");
+            return null;
+        }
+
+        // 4. ダウンロード機能 (生成結果)
+        function downloadGeneratedCover(index) {
+            const generatedImage = document.getElementById(`generatedImage${index}`);
+            if (generatedImage && generatedImage.src) {
+                const imageUrl = generatedImage.src;
+                
+                if (imageUrl.startsWith('data:image/')) {
+                    const link = document.createElement('a');
+                    link.href = imageUrl;
+                    link.download = `generated-book-cover-${index}.png`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                } else if (imageUrl.includes('placehold.co')) {
+                     showAlert("情報", "エラーが発生したため、画像をダウンロードできません。");
+                } else {
+                    showAlert("エラー", "ダウンロードする画像が見つかりません。");
+                }
+            } else {
+                showAlert("エラー", "ダウンロードする画像が見つかりません。");
+            }
+        }
+
+        // ★★★ 新規追加: サンプル画像ダウンロード機能 ★★★
+        async function downloadSampleCover(imageUrl, fileName) {
+            // ★★★ 修正: アラートの表示をダウンロード開始時に変更 ★★★
+            showAlert("情報", "サンプル画像をダウンロード中です...");
+            
+            const img = new Image();
+            // CORS設定
+            if (imageUrl.startsWith('http')) {
+                img.crossOrigin = "Anonymous";
+            }
+
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+                
+                let dataUrl;
+                try {
+                    dataUrl = canvas.toDataURL('image/png');
+                } catch (e) {
+                    console.error("Canvas toDataURL error for sample download:", e);
+                    showAlert("エラー", "サンプル画像のダウンロードに失敗しました (Canvas Error)。");
+                    return;
+                }
+                
+                // ダウンロードリンクを作成
+                const link = document.createElement('a');
+                link.href = dataUrl;
+                link.download = fileName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                // ★★★ 修正: ダウンロードクリック後にアラートを閉じる ★★★
+                document.getElementById('alertOkButton').click();
+            };
+
+            img.onerror = function(error) {
+                console.error(`Error loading sample image for download: ${imageUrl}`, error);
+                showAlert("エラー", `サンプル画像 (${imageUrl}) のダウンロードに失敗しました。`);
+            };
+
+            // キャッシュ回避
+            if (imageUrl.startsWith('https://placehold.co')) {
+                 img.src = imageUrl + (imageUrl.includes('?') ? '&' : '?') + new Date().getTime();
+            } else {
+                 img.src = imageUrl;
+            }
+        }
+
+    </script>
+</body>
+</html>
