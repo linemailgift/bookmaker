@@ -330,6 +330,10 @@
         // アップロードされた画像のbase64データを保持する変数
         let bookShapeBase64 = null;
         let coverImageBase64 = null;
+        // ★★★ 修正: MIMEタイプを保持する変数を追加 ★★★
+        let bookShapeMimeType = "image/png"; // デフォルト
+        let coverImageMimeType = "image/png"; // デフォルト
+
         let isGenerating = false; // 生成中フラグ
 
         const generateButton = document.getElementById('generateButton');
@@ -362,7 +366,8 @@
                     const base64Data = e.target.result.split(',')[1]; // base64データ部分
                     const dataUrl = e.target.result; // Data URL
 
-                    setUploadedImage(type, dataUrl, base64Data, file.name);
+                    // ★★★ 修正: file.type (MIMEタイプ) を渡す ★★★
+                    setUploadedImage(type, dataUrl, base64Data, file.name, file.type);
                 };
                 reader.onerror = function(error) {
                     console.error("File reading error:", error);
@@ -392,9 +397,15 @@
                 
                 let dataUrl;
                 let base64Data;
+                // ★★★ 修正: MIMEタイプを決定 ★★★
+                let mimeType = "image/png"; // デフォルト
+                if (imageUrl.toLowerCase().endsWith(".jpg") || imageUrl.toLowerCase().endsWith(".jpeg")) {
+                    mimeType = "image/jpeg";
+                }
+                
                 try {
-                    // PNGをデフォルトにする
-                    dataUrl = canvas.toDataURL('image/png');
+                    // ★★★ 修正: 決定したMIMEタイプで Data URL を生成 ★★★
+                    dataUrl = canvas.toDataURL(mimeType);
                     base64Data = dataUrl.split(',')[1];
                 } catch (e) {
                     // toDataURLが失敗するケース（e.g., tainted canvas from CORS）
@@ -405,7 +416,8 @@
                 
                 const fileName = imageUrl.split('/').pop(); // ファイル名を取得
                 // 既存のセットアップ関数を流用
-                setUploadedImage(type, dataUrl, base64Data, `(サンプル) ${fileName}`);
+                // ★★★ 修正: MIMEタイプを渡す ★★★
+                setUploadedImage(type, dataUrl, base64Data, `(サンプル) ${fileName}`, mimeType);
             };
 
             img.onerror = function(error) {
@@ -424,15 +436,18 @@
 
         // ★★★ 新規追加: 画像セットアップ共通関数 ★★★
         // (アップロードとサンプル読み込みの両方から呼ばれる)
-        function setUploadedImage(type, dataUrl, base64Data, fileName) {
+        // ★★★ 修正: mimeType を引数に追加 ★★★
+        function setUploadedImage(type, dataUrl, base64Data, fileName, mimeType) {
             if (type === 'bookShape') {
                 bookShapeBase64 = base64Data;
+                bookShapeMimeType = mimeType; // ★★★ MIMEタイプを保存 ★★★
                 document.getElementById('bookShapePreview').src = dataUrl;
                 document.getElementById('bookShapePreview').classList.remove('hidden');
                 document.getElementById('bookShapeIcon').classList.add('hidden');
                 document.getElementById('bookShapeText').textContent = fileName;
             } else if (type === 'coverImage') {
                 coverImageBase64 = base64Data;
+                coverImageMimeType = mimeType; // ★★★ MIMEタイプを保存 ★★★
                 document.getElementById('coverImagePreview').src = dataUrl;
                 document.getElementById('coverImagePreview').classList.remove('hidden');
                 document.getElementById('coverImageIcon').classList.add('hidden');
@@ -534,7 +549,8 @@
             try {
                 // 3つのAPIコールを並行実行
                 const promises = prompts.map(prompt => 
-                    callNanoBanana(prompt, coverImageBase64, bookShapeBase64)
+                    // ★★★ 修正: MIMEタイプを渡す ★★★
+                    callNanoBanana(prompt, coverImageBase64, coverImageMimeType, bookShapeBase64, bookShapeMimeType)
                 );
                 
                 const [imgUrl1, imgUrl2, imgUrl3] = await Promise.all(promises);
@@ -586,13 +602,15 @@
         }
 
         // 3. nanobanana API呼び出し関数
-        async function callNanoBanana(prompt, coverImageBase64, bookShapeBase64) {
+        // ★★★ 修正: MIMEタイプを引数で受け取る ★★★
+        async function callNanoBanana(prompt, coverImageBase64, coverMimeType, bookShapeBase64, bookShapeMimeType) {
             const payload = {
                 contents: [{
                     parts: [
                         { text: prompt },
-                        { inlineData: { mimeType: "image/png", data: bookShapeBase64 } }, // 1枚目: 本の形
-                        { inlineData: { mimeType: "image/png", data: coverImageBase64 } }  // 2枚目: 表紙デザイン
+                        // ★★★ 修正: MIMEタイプを動的に設定 ★★★
+                        { inlineData: { mimeType: bookShapeMimeType, data: bookShapeBase64 } }, // 1枚目: 本の形
+                        { inlineData: { mimeType: coverMimeType, data: coverImageBase64 } }  // 2枚目: 表紙デザイン
                     ]
                 }],
                 generationConfig: {
@@ -691,7 +709,12 @@
                 
                 let dataUrl;
                 try {
-                    dataUrl = canvas.toDataURL('image/png');
+                    // ★★★ 修正: ファイル名からMIMEタイプを推定 ★★★
+                    let mimeType = "image/png";
+                    if (fileName.toLowerCase().endsWith(".jpg") || fileName.toLowerCase().endsWith(".jpeg")) {
+                        mimeType = "image/jpeg";
+                    }
+                    dataUrl = canvas.toDataURL(mimeType);
                 } catch (e) {
                     console.error("Canvas toDataURL error for sample download:", e);
                     showAlert("エラー", "サンプル画像のダウンロードに失敗しました (Canvas Error)。");
