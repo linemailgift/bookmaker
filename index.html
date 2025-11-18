@@ -330,7 +330,6 @@
         // アップロードされた画像のbase64データを保持する変数
         let bookShapeBase64 = null;
         let coverImageBase64 = null;
-        // ★★★ 修正: MIMEタイプを保持する変数を追加 ★★★
         let bookShapeMimeType = "image/png"; // デフォルト
         let coverImageMimeType = "image/png"; // デフォルト
 
@@ -365,8 +364,6 @@
                 reader.onload = function(e) {
                     const base64Data = e.target.result.split(',')[1]; // base64データ部分
                     const dataUrl = e.target.result; // Data URL
-
-                    // ★★★ 修正: file.type (MIMEタイプ) を渡す ★★★
                     setUploadedImage(type, dataUrl, base64Data, file.name, file.type);
                 };
                 reader.onerror = function(error) {
@@ -379,11 +376,10 @@
             }
         }
 
-        // ★★★ 修正: サンプル画像読み込み関数 (fetchを削除し、Image/Canvasを使用) ★★★
+        // サンプル画像読み込み関数
         async function loadSampleImage(imageUrl, type) {
             const img = new Image();
             
-            // placehold.co のような外部画像のためにCORS設定
             if (imageUrl.startsWith('http')) {
                 img.crossOrigin = "Anonymous";
             }
@@ -397,26 +393,21 @@
                 
                 let dataUrl;
                 let base64Data;
-                // ★★★ 修正: MIMEタイプを決定 ★★★
                 let mimeType = "image/png"; // デフォルト
                 if (imageUrl.toLowerCase().endsWith(".jpg") || imageUrl.toLowerCase().endsWith(".jpeg")) {
                     mimeType = "image/jpeg";
                 }
                 
                 try {
-                    // ★★★ 修正: 決定したMIMEタイプで Data URL を生成 ★★★
                     dataUrl = canvas.toDataURL(mimeType);
                     base64Data = dataUrl.split(',')[1];
                 } catch (e) {
-                    // toDataURLが失敗するケース（e.g., tainted canvas from CORS）
                     console.error("Canvas toDataURL error:", e);
                     showAlert("エラー", "サンプル画像の読み込みに失敗しました (Canvas Error)。");
                     return;
                 }
                 
                 const fileName = imageUrl.split('/').pop(); // ファイル名を取得
-                // 既存のセットアップ関数を流用
-                // ★★★ 修正: MIMEタイプを渡す ★★★
                 setUploadedImage(type, dataUrl, base64Data, `(サンプル) ${fileName}`, mimeType);
             };
 
@@ -425,40 +416,31 @@
                 showAlert("エラー", `サンプル画像 (${imageUrl}) の読み込みに失敗しました。`);
             };
 
-            // placehold.co の場合はキャッシュを回避（CORS/Taint対策）
-            if (imageUrl.startsWith('https://placehold.co')) {
-                 img.src = imageUrl + (imageUrl.includes('?') ? '&' : '?') + new Date().getTime();
-            } else {
-                 // ★★★ 修正: ローカルファイルもキャッシュを回避 ★★★
-                 img.src = imageUrl + '?' + new Date().getTime();
-            }
+            // ★★★ 修正: キャッシュ回避のクエリ文字列を削除 ★★★
+            img.src = imageUrl;
         }
 
-        // ★★★ 新規追加: 画像セットアップ共通関数 ★★★
-        // (アップロードとサンプル読み込みの両方から呼ばれる)
-        // ★★★ 修正: mimeType を引数に追加 ★★★
+        // 画像セットアップ共通関数
         function setUploadedImage(type, dataUrl, base64Data, fileName, mimeType) {
             if (type === 'bookShape') {
                 bookShapeBase64 = base64Data;
-                bookShapeMimeType = mimeType; // ★★★ MIMEタイプを保存 ★★★
+                bookShapeMimeType = mimeType; // MIMEタイプを保存
                 document.getElementById('bookShapePreview').src = dataUrl;
                 document.getElementById('bookShapePreview').classList.remove('hidden');
                 document.getElementById('bookShapeIcon').classList.add('hidden');
                 document.getElementById('bookShapeText').textContent = fileName;
             } else if (type === 'coverImage') {
                 coverImageBase64 = base64Data;
-                coverImageMimeType = mimeType; // ★★★ MIMEタイプを保存 ★★★
+                coverImageMimeType = mimeType; // MIMEタイプを保存
                 document.getElementById('coverImagePreview').src = dataUrl;
                 document.getElementById('coverImagePreview').classList.remove('hidden');
                 document.getElementById('coverImageIcon').classList.add('hidden');
                 document.getElementById('coverImageText').textContent = fileName;
                 
-                // 色抽出ボタンを有効化し、自動で色を抽出
                 pickColorButton.disabled = false;
                 extractCoverColor(dataUrl);
             }
             
-            // 両方の画像がセットされたらボタンを有効化
             if (bookShapeBase64 && coverImageBase64) {
                 generateButton.disabled = false;
             }
@@ -480,7 +462,6 @@
                 return;
             }
             const img = new Image();
-            // ★★★ CORS設定を追加 ★★★ (placehold.co のような外部画像の色抽出に必要)
             img.crossOrigin = "Anonymous";
             img.onload = function() {
                 const canvas = document.createElement('canvas');
@@ -488,7 +469,6 @@
                 canvas.width = img.width;
                 canvas.height = img.height;
                 ctx.drawImage(img, 0, 0);
-                // 画像の中心ピクセルの色を取得
                 const pixelData = ctx.getImageData(Math.floor(img.width / 2), Math.floor(img.height / 2), 1, 1).data;
                 const hexColor = rgbToHex(pixelData[0], pixelData[1], pixelData[2]);
                 
@@ -496,16 +476,10 @@
             };
             img.onerror = function() {
                 console.warn("Color extraction failed. This might be due to CORS or the image not being ready.");
-                // CORSエラーはコンソールに自動で記録されるため、ここではアラートを出さない
             };
             
-            // placehold.co からの画像の場合、タイムスタンプを追加してキャッシュを回避（CORSエラー対策）
-            if (src.startsWith('https://placehold.co')) {
-                 img.src = src + (src.includes('?') ? '&' : '?') + new Date().getTime();
-            } else {
-                 // ★★★ 修正: ローカルファイルもキャッシュを回避 ★★★
-                 img.src = src + (src.includes('?') ? '?' : '&') + new Date().getTime();
-            }
+            // ★★★ 修正: キャッシュ回避のクエリ文字列を削除 ★★★
+            img.src = src;
         }
         // ボタンクリックでも色抽出を実行
         pickColorButton.onclick = () => extractCoverColor(document.getElementById('coverImagePreview').src);
@@ -521,7 +495,6 @@
             setLoadingState(true);
             resultSection.classList.remove('hidden');
 
-            // 3つのローディングスピナーを表示
             for (let i = 1; i <= 3; i++) {
                 document.getElementById(`loadingResult${i}`).classList.add('visible');
                 document.getElementById(`generatedImage${i}`).classList.add('hidden');
@@ -530,32 +503,29 @@
             
             const spineColor = document.getElementById('spineColorPicker').value;
 
-            // 3種類のプロンプトを生成
+            // ★★★ 修正: プロンプトを英語に変更 ★★★
             const basePrompt = `
-                入力された1枚目の画像（本の形）と全く同じ形状、角度、ライティング、影、テクスチャを維持したリアルなハードカバー本を生成してください。
-                入力された2枚目の画像（表紙のデザイン）を、本の表紙全体に適用してください。画像は縦横比を維持したまま、カバー全体を覆うように拡大縮小（必要に応じてトリミング）してください。
-                最終的な画像の背景は、純粋な白一色（#FFFFFF）にしてください。
+                Generate a realistic hardcover book that maintains the exact same shape, angle, lighting, shadow, and texture as the first input image (the book shape).
+                Apply the second input image (the cover design) to the entire front cover of the book. The image should be scaled (and cropped if necessary) to cover the entire cover while maintaining its aspect ratio.
+                The final image's background must be pure white (#FFFFFF).
             `;
             
             const prompts = [
                 // 1. 指定色
-                `${basePrompt} 背表紙の色は、指定された色 (${spineColor}) にしてください。`,
+                `${basePrompt} The spine color must be the specified color (${spineColor}).`,
                 // 2. 補色
-                `${basePrompt} 背表紙の色は、表紙のデザインと調和する「補色 (complementary color)」をAIが自動で選択してください。`,
+                `${basePrompt} The spine color must be an AI-selected 'complementary color' that harmonizes with the cover design.`,
                 // 3. 類似色
-                `${basePrompt} 背表紙の色は、表紙のデザインと調和する「類似色 (analogous color)」をAIが自動で選択してください。`
+                `${basePrompt} The spine color must be an AI-selected 'analogous color' that harmonizes with the cover design.`
             ];
 
             try {
-                // 3つのAPIコールを並行実行
                 const promises = prompts.map(prompt => 
-                    // ★★★ 修正: MIMEタイプを渡す ★★★
                     callNanoBanana(prompt, coverImageBase64, coverImageMimeType, bookShapeBase64, bookShapeMimeType)
                 );
                 
                 const [imgUrl1, imgUrl2, imgUrl3] = await Promise.all(promises);
 
-                // 結果をセット
                 setImageResult(1, imgUrl1);
                 setImageResult(2, imgUrl2);
                 setImageResult(3, imgUrl3);
@@ -564,7 +534,7 @@
                 
             } catch (error) {
                 console.error("Error generating covers:", error);
-                setImageResult(1, null); // Show error placeholder
+                setImageResult(1, null);
                 setImageResult(2, null);
                 setImageResult(3, null);
                 showAlert("エラー", "表紙の生成中にエラーが発生しました。");
@@ -586,10 +556,10 @@
             } else {
                 img.src = `https://placehold.co/400x400/f87171/ffffff?text=Error+${index}`;
                 img.classList.remove('hidden');
-                btn.classList.add('hidden'); // エラー時はダウンロードさせない
+                btn.classList.add('hidden');
             }
-            loader.classList.remove('visible'); // スピナーを隠す
-            loader.classList.add('hidden');
+            loader.classList.remove('visible');
+$            loader.classList.add('hidden');
         }
 
         // ローディング状態の切り替え
@@ -602,13 +572,11 @@
         }
 
         // 3. nanobanana API呼び出し関数
-        // ★★★ 修正: MIMEタイプを引数で受け取る ★★★
         async function callNanoBanana(prompt, coverImageBase64, coverMimeType, bookShapeBase64, bookShapeMimeType) {
             const payload = {
                 contents: [{
                     parts: [
                         { text: prompt },
-                        // ★★★ 修正: MIMEタイプを動的に設定 ★★★
                         { inlineData: { mimeType: bookShapeMimeType, data: bookShapeBase64 } }, // 1枚目: 本の形
                         { inlineData: { mimeType: coverMimeType, data: coverImageBase64 } }  // 2枚目: 表紙デザイン
                     ]
@@ -691,11 +659,9 @@
 
         // ★★★ 新規追加: サンプル画像ダウンロード機能 ★★★
         async function downloadSampleCover(imageUrl, fileName) {
-            // ★★★ 修正: アラートの表示をダウンロード開始時に変更 ★★★
             showAlert("情報", "サンプル画像をダウンロード中です...");
             
             const img = new Image();
-            // CORS設定
             if (imageUrl.startsWith('http')) {
                 img.crossOrigin = "Anonymous";
             }
@@ -709,7 +675,6 @@
                 
                 let dataUrl;
                 try {
-                    // ★★★ 修正: ファイル名からMIMEタイプを推定 ★★★
                     let mimeType = "image/png";
                     if (fileName.toLowerCase().endsWith(".jpg") || fileName.toLowerCase().endsWith(".jpeg")) {
                         mimeType = "image/jpeg";
@@ -721,7 +686,6 @@
                     return;
                 }
                 
-                // ダウンロードリンクを作成
                 const link = document.createElement('a');
                 link.href = dataUrl;
                 link.download = fileName;
@@ -729,7 +693,6 @@
                 link.click();
                 document.body.removeChild(link);
 
-                // ★★★ 修正: ダウンロードクリック後にアラートを閉じる ★★★
                 document.getElementById('alertOkButton').click();
             };
 
@@ -738,13 +701,8 @@
                 showAlert("エラー", `サンプル画像 (${imageUrl}) のダウンロードに失敗しました。`);
             };
 
-            // キャッシュ回避
-            if (imageUrl.startsWith('https://placehold.co')) {
-                 img.src = imageUrl + (imageUrl.includes('?') ? '&' : '?') + new Date().getTime();
-            } else {
-                 // ★★★ 修正: ローカルファイルもキャッシュを回避 ★★★
-                 img.src = imageUrl + '?' + new Date().getTime();
-            }
+            // ★★★ 修正: キャッシュ回避のクエリ文字列を削除 ★★★
+            img.src = imageUrl;
         }
 
     </script>
