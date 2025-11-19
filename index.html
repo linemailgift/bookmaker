@@ -6,6 +6,7 @@
     <title>本の表紙メーカー</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        /* 全体のフォントと背景 */
         body { 
             font-family: 'Noto Sans JP', sans-serif; 
             background-color: #f0fdfa; 
@@ -14,106 +15,176 @@
         }
         canvas { touch-action: none; }
 
-        /* ボタンデザイン */
+        /* --- ボタン（角丸あり） --- */
         .btn-rich {
             position: relative;
             overflow: hidden;
-            transition: all 0.2s ease;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
             z-index: 1;
             border: none; 
+            backdrop-filter: blur(4px);
             border-radius: 9999px;
         }
-        .btn-rich:active { transform: translateY(1px); }
-        .btn-rich:disabled { opacity: 0.5; cursor: not-allowed; }
-        
+        .btn-rich::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 50%;
+            background: linear-gradient(to bottom, rgba(255,255,255,0.3), rgba(255,255,255,0));
+            border-radius: 9999px;
+            z-index: -1;
+            pointer-events: none;
+        }
+        .btn-rich:not(:disabled):hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px -5px rgba(0,0,0,0.15);
+            filter: brightness(1.1);
+        }
+        .btn-rich:not(:disabled):active {
+            transform: translateY(0);
+            box-shadow: 0 2px 5px -2px rgba(0,0,0,0.1);
+        }
+        .btn-rich:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+            filter: grayscale(0.8);
+        }
+        /* 光沢アニメーション */
+        .btn-shine { position: relative; }
+        .btn-shine::after {
+            content: "";
+            position: absolute;
+            top: 0; left: -150%; width: 100%; height: 100%;
+            background: linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.6) 50%, transparent 100%);
+            transform: skewX(-25deg);
+            transition: none;
+            pointer-events: none;
+        }
+        .btn-shine:not(:disabled):hover::after {
+            animation: shine-anim 0.7s ease-in-out;
+        }
+        @keyframes shine-anim {
+            0% { left: -150%; }
+            100% { left: 150%; }
+        }
+
         /* パネル */
         .rich-panel {
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(255, 255, 255, 0.9);
             backdrop-filter: blur(10px);
-            border: 1px solid #e2e8f0;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.05);
             border-radius: 12px;
         }
 
+        /* ファイル入力 (枠なし・角なし) */
+        input[type="file"] {
+            background-color: transparent;
+            border: none;
+            border-radius: 0;
+            padding: 0;
+            width: 100%;
+        }
+        input[type="file"]::file-selector-button {
+            border-radius: 0; border: none;
+            margin-right: 1rem; padding: 0.5rem 1rem;
+            background-color: #e2e8f0; color: #475569;
+            font-weight: bold; cursor: pointer;
+            transition: background 0.2s;
+        }
+        input[type="file"]::file-selector-button:hover { background-color: #cbd5e1; }
+        
         /* スクロールバー */
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
     </style>
 </head>
 <body class="min-h-screen flex flex-col text-gray-800">
 
-    <header class="bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-600 p-4 shadow-lg">
-        <div class="container mx-auto">
+    <!-- ヘッダー -->
+    <header class="bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-600 p-4 shadow-lg relative overflow-hidden">
+        <div class="container mx-auto flex justify-between items-center relative z-10">
             <h1 class="text-2xl font-extrabold text-white tracking-wide drop-shadow-md">
                 本の表紙メーカー
             </h1>
         </div>
     </header>
 
-    <main class="flex-grow container mx-auto p-4 flex flex-col lg:flex-row gap-6">
+    <!-- メインコンテンツ -->
+    <main class="flex-grow container mx-auto p-6 flex flex-col lg:flex-row gap-8">
         
-        <!-- 左カラム -->
-        <div class="w-full lg:w-1/3 flex flex-col gap-4">
+        <!-- 左カラム: 操作パネル -->
+        <div class="w-full lg:w-1/3 flex flex-col gap-6">
             
-            <div id="statusBox" class="hidden p-3 rounded border-l-4 shadow-sm text-sm font-bold">
-                <p id="statusMessage"></p>
+            <!-- ステータス表示 -->
+            <div id="statusBox" class="hidden p-4 rounded border-l-4 shadow-md transition-all duration-300 transform">
+                <p id="statusMessage" class="text-sm font-bold flex items-center gap-2"></p>
             </div>
 
-            <div class="rich-panel p-5 space-y-6">
+            <!-- 設定パネル -->
+            <div class="rich-panel p-6 space-y-8">
                 
                 <!-- 1. 背景設定 -->
                 <div>
-                    <label class="block text-sm font-bold mb-2 text-gray-700">
-                        <span class="text-emerald-600 font-extrabold text-xs mr-1">STEP 1</span>
+                    <label class="block text-sm font-bold mb-3 text-gray-700 flex items-center gap-2">
+                        <span class="text-emerald-600 font-extrabold text-xs">STEP 1</span>
                         モックアップ画像 (背景)
                     </label>
                     
-                    <!-- サンプル選択 (横6列) -->
-                    <div class="bg-slate-50 p-2 border rounded-lg mb-3">
-                        <div class="text-xs text-slate-500 mb-1 font-bold">サンプルから選択</div>
-                        <!-- grid-cols-6 に変更し、gapを狭く -->
-                        <div id="sampleContainer" class="grid grid-cols-6 gap-1 max-h-32 overflow-y-auto custom-scrollbar pr-1">
-                            <!-- JSで生成 -->
+                    <!-- サンプル選択 (6列) -->
+                    <div class="bg-slate-50 p-2 border-b border-slate-200 mb-4 rounded">
+                        <div class="text-xs text-slate-500 mb-2 font-bold">サンプルから選択</div>
+                        <!-- grid-cols-6 に変更、gapを小さく -->
+                        <div id="sampleContainer" class="grid grid-cols-6 gap-1 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+                            <div class="text-xs text-gray-400 col-span-6 py-6 text-center">読み込み中...</div>
                         </div>
                     </div>
 
                     <!-- ファイルアップロード -->
-                    <div class="text-xs text-gray-500 mb-1 pl-1">または画像をアップロード</div>
-                    <input type="file" id="inputMockup" accept="image/*" class="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer">
+                    <div class="relative">
+                        <div class="text-xs text-gray-500 mb-1 font-bold pl-1">または画像をアップロード</div>
+                        <input type="file" id="inputMockup" accept="image/*" class="block w-full text-sm text-slate-500 cursor-pointer">
+                    </div>
                 </div>
                 
-                <div class="border-t border-dashed border-gray-200"></div>
+                <div class="border-t border-dashed border-gray-300"></div>
 
                 <!-- 2. 表紙設定 -->
                 <div>
-                    <label class="block text-sm font-bold mb-2 text-gray-700">
-                        <span class="text-indigo-600 font-extrabold text-xs mr-1">STEP 2</span>
+                    <label class="block text-sm font-bold mb-3 text-gray-700 flex items-center gap-2">
+                        <span class="text-indigo-600 font-extrabold text-xs">STEP 2</span>
                         表紙画像 (中身)
                     </label>
                     
-                    <div class="flex items-center gap-2 mb-2">
-                        <input type="file" id="inputCover" accept="image/*" class="block w-full text-xs text-slate-500 file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer">
-                        
-                        <button id="btnSynthesize" class="btn-rich bg-gradient-to-br from-indigo-500 to-violet-600 text-white font-bold py-1.5 px-4 text-sm shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
+                    <div class="flex items-end gap-3">
+                        <div class="flex-grow">
+                             <input type="file" id="inputCover" accept="image/*" class="block w-full text-sm text-slate-500 cursor-pointer">
+                        </div>
+                        <!-- 合成ボタン -->
+                        <button id="btnSynthesize" class="btn-rich btn-shine bg-gradient-to-br from-indigo-500 to-violet-600 text-white font-bold py-3 px-6 shadow-lg whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[100px]">
                             合成
                         </button>
                     </div>
                     
-                    <div id="coverPreviewContainer" class="hidden bg-slate-50 p-2 border rounded-lg text-center">
-                        <div class="flex justify-between items-center mb-1 px-1">
-                            <span class="text-[10px] text-slate-500 font-bold">選択中:</span>
-                            <span id="synthesizeStatus" class="text-[10px] font-bold text-orange-500 bg-white px-1.5 rounded border">未合成</span>
+                    <!-- プレビュー -->
+                    <div id="coverPreviewContainer" class="mt-4 hidden bg-slate-50 p-3 border border-slate-200 shadow-inner relative overflow-hidden">
+                        <div class="flex justify-between items-center mb-2 relative z-10">
+                            <p class="text-xs text-slate-500 font-bold">選択中の表紙:</p>
+                            <span id="synthesizeStatus" class="text-xs font-bold text-orange-500 bg-white px-2 py-0.5 shadow-sm">未合成</span>
                         </div>
-                        <img id="coverPreview" class="h-16 w-auto object-contain mx-auto shadow-sm bg-white">
+                        <img id="coverPreview" class="h-28 w-auto object-contain mx-auto shadow-sm relative z-10 bg-white" alt="Cover Preview">
                     </div>
                 </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-3">
-                <button id="btnReset" class="btn-rich bg-white text-slate-600 font-bold py-2 px-4 text-sm border border-slate-200 hover:bg-slate-50">
+            <!-- アクション -->
+            <div class="grid grid-cols-2 gap-4">
+                <button id="btnReset" class="btn-rich bg-gradient-to-b from-slate-100 to-slate-200 text-slate-600 font-bold py-3 px-4 shadow-sm hover:text-slate-800">
                     全クリア
                 </button>
-                <button id="btnDownload" class="btn-rich bg-gradient-to-br from-cyan-500 to-blue-600 text-white font-bold py-2 px-4 text-sm shadow-md hover:shadow-lg disabled:opacity-50">
+                <button id="btnDownload" class="btn-rich btn-shine bg-gradient-to-br from-cyan-500 to-blue-600 text-white font-bold py-3 px-4 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
                     ダウンロード
                 </button>
             </div>
@@ -121,35 +192,46 @@
 
         <!-- 右カラム: キャンバス -->
         <div class="w-full lg:w-2/3 rich-panel shadow-xl flex justify-center items-center overflow-hidden relative min-h-[500px] bg-slate-100" id="canvasContainer">
-            <div class="absolute inset-0 pointer-events-none" style="background-image: radial-gradient(#94a3b8 1px, transparent 1px); background-size: 20px 20px; opacity: 0.1;"></div>
-            <canvas id="mainCanvas" class="max-w-full max-h-[85vh] shadow-2xl hidden relative z-10"></canvas>
-            <div id="placeholderText" class="text-slate-400 pointer-events-none text-center z-10 text-sm">
-                左のパネルから設定してください
+            <!-- 背景パターン -->
+            <div class="absolute inset-0 opacity-5 pointer-events-none" style="background-image: radial-gradient(#64748b 1px, transparent 1px); background-size: 30px 30px;"></div>
+            
+            <canvas id="mainCanvas" class="max-w-full max-h-[80vh] shadow-2xl hidden relative z-10 transition-transform duration-300"></canvas>
+            
+            <div id="placeholderText" class="text-slate-400 pointer-events-none text-center z-10">
+                <p class="text-lg font-medium">ここに画像が表示されます</p>
+                <p class="text-sm opacity-70 mt-2">左のパネルから設定してください</p>
             </div>
         </div>
     </main>
 
-    <footer class="bg-slate-800 text-slate-400 py-4 text-center text-xs mt-8">
-        &copy; 2025 chiikuji
+    <!-- フッター -->
+    <footer class="bg-slate-800 text-slate-300 py-6 text-center text-sm mt-8 border-t border-slate-700">
+        <p>&copy; 2025 chiikuji</p>
     </footer>
 
+    <!-- JavaScript -->
     <script>
-        // --- 設定 ---
-        const SAMPLE_FILES = ["1.png", "2.png", "3.png", "4.png", "5.png", "6.png"];
-        // 大文字対応のためにリストを拡張
-        const ALL_SAMPLES = [...SAMPLE_FILES, ...SAMPLE_FILES.map(f => f.replace('.png', '.PNG'))];
+        // --- 設定: サンプル画像リスト (大文字小文字対応) ---
+        const SAMPLE_FILES = [
+            "1.png", "1.PNG",
+            "2.png", "2.PNG",
+            "3.png", "3.PNG",
+            "4.png", "4.PNG",
+            "5.png", "5.PNG",
+            "6.png", "6.PNG"
+        ];
 
-        // --- DOM ---
+        // --- 変数 ---
         const canvas = document.getElementById('mainCanvas');
-        const ctx = canvas.getContext('2d', { willReadFrequently: true, alpha: true }); // アルファ有効化
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         const inputMockup = document.getElementById('inputMockup');
         const inputCover = document.getElementById('inputCover');
         const btnSynthesize = document.getElementById('btnSynthesize');
         const coverPreviewContainer = document.getElementById('coverPreviewContainer');
         const coverPreview = document.getElementById('coverPreview');
         const synthesizeStatus = document.getElementById('synthesizeStatus');
-        const statusBox = document.getElementById('statusBox');
         const statusMessage = document.getElementById('statusMessage');
+        const statusBox = document.getElementById('statusBox');
         const btnReset = document.getElementById('btnReset');
         const btnDownload = document.getElementById('btnDownload');
         const placeholderText = document.getElementById('placeholderText');
@@ -160,304 +242,280 @@
         let points = []; 
         const MAX_POINTS = 4;
         let isSynthesized = false;
-        
+
         let isDragging = false;
         let dragPointIndex = -1;
         const HIT_RADIUS = 20;
 
         // --- 初期化 ---
-        window.addEventListener('DOMContentLoaded', () => {
-            initSampleGallery();
-            ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = 'high';
-        });
+        window.addEventListener('DOMContentLoaded', initSampleGallery);
 
         function initSampleGallery() {
             sampleContainer.innerHTML = "";
-            // 1.png ~ 6.png を表示
+            // ファイル名リストから画像を生成
             SAMPLE_FILES.forEach(fileName => {
-                const div = document.createElement('div');
-                // 縦長画像を見やすくするためのアスペクト比設定
-                div.className = "aspect-[2/3] overflow-hidden rounded cursor-pointer border-2 border-transparent hover:border-emerald-400 transition-all bg-white shadow-sm";
-                
                 const img = document.createElement('img');
                 img.src = fileName;
-                img.className = "w-full h-full object-cover"; // 枠いっぱいに表示
+                // サムネイル: 角丸なし、枠なし、ホバーで色枠
+                // 縦長画像を見やすくするため aspect-ratio を調整
+                img.className = "w-full aspect-[2/3] object-cover cursor-pointer border-4 border-transparent hover:border-emerald-400 bg-white transition-all duration-200 shadow-sm hover:shadow-md hover:-translate-y-1";
                 
-                div.onclick = () => {
-                    Array.from(sampleContainer.children).forEach(c => c.classList.remove('border-emerald-500', 'ring-2', 'ring-emerald-200'));
-                    div.classList.remove('border-transparent');
-                    div.classList.add('border-emerald-500', 'ring-2', 'ring-emerald-200');
+                img.onclick = () => {
+                    Array.from(sampleContainer.children).forEach(c => {
+                        c.classList.remove('border-emerald-500', 'ring-2', 'ring-emerald-200');
+                        c.classList.add('border-transparent');
+                    });
+                    img.classList.remove('border-transparent');
+                    img.classList.add('border-emerald-500', 'ring-2', 'ring-emerald-200');
                     loadMockupFromUrl(fileName);
                 };
-                
-                // 画像読み込みエラー時は非表示（大文字版などは裏で試すロジックはここでは省略し、ファイル名通りに探す）
-                img.onerror = () => { div.style.display = 'none'; };
-                
-                div.appendChild(img);
-                sampleContainer.appendChild(div);
+                // ファイルが存在しない場合は非表示にする
+                img.onerror = () => { img.style.display = 'none'; };
+                sampleContainer.appendChild(img);
             });
         }
 
-        // --- 画像処理 ---
+        // --- 画像読み込み ---
         function loadMockupFromUrl(url) {
             const img = new Image();
-            img.crossOrigin = "Anonymous";
             img.onload = () => { handleMockupLoad(img); inputMockup.value = ''; };
-            // 小文字で見つからない場合、大文字を試す簡易リトライ
-            img.onerror = () => {
+            // 小文字で見つからない場合、大文字を試す
+            img.onerror = () => { 
                 if (url.endsWith('.png')) {
-                    const retryUrl = url.replace('.png', '.PNG');
-                    const imgRetry = new Image();
-                    imgRetry.onload = () => { handleMockupLoad(imgRetry); inputMockup.value = ''; };
-                    imgRetry.src = retryUrl;
-                } else {
-                    alert("画像の読み込みに失敗しました: " + url);
+                    const upperUrl = url.replace('.png', '.PNG');
+                    const img2 = new Image();
+                    img2.onload = () => { handleMockupLoad(img2); inputMockup.value = ''; };
+                    img2.src = upperUrl;
                 }
             };
             img.src = url;
         }
 
         inputMockup.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if(!file) return;
-            const reader = new FileReader();
-            reader.onload = (evt) => {
-                const img = new Image();
-                img.onload = () => handleMockupLoad(img);
-                img.src = evt.target.result;
-            };
-            reader.readAsDataURL(file);
-            // サンプル選択解除
-            Array.from(sampleContainer.children).forEach(c => c.classList.remove('border-emerald-500', 'ring-2'));
+            loadReader(e, (img) => {
+                Array.from(sampleContainer.children).forEach(c => c.classList.remove('border-emerald-500', 'ring-2'));
+                handleMockupLoad(img);
+            });
         });
 
         function handleMockupLoad(img) {
             mockupImg = img;
-            isSynthesized = false;
+            isSynthesized = false; 
             synthesizeStatus.textContent = "未合成";
-            synthesizeStatus.className = "text-[10px] font-bold text-orange-500 bg-white px-1.5 rounded border";
+            synthesizeStatus.className = "text-xs font-bold text-orange-500 bg-orange-50 px-2 py-0.5 border border-orange-100";
             
             detectRedDots(img);
-            resizeCanvas();
-            draw();
+            resizeCanvasToImage(img);
+            draw(); 
             
             if(coverImg) showStatus("「合成」ボタンを押してください", "blue");
             else showStatus("", "");
         }
 
         inputCover.addEventListener('change', (e) => {
+            loadReader(e, (img) => {
+                coverImg = img;
+                coverPreview.src = img.src;
+                coverPreviewContainer.classList.remove('hidden');
+                
+                isSynthesized = false; 
+                synthesizeStatus.textContent = "未合成";
+                synthesizeStatus.className = "text-xs font-bold text-orange-500 bg-orange-50 px-2 py-0.5 border border-orange-100";
+                
+                draw();
+                if(mockupImg) showStatus("「合成」ボタンを押してください", "blue");
+            });
+        });
+
+        function loadReader(e, callback) {
             const file = e.target.files[0];
-            if(!file) return;
+            if (!file) return;
             const reader = new FileReader();
             reader.onload = (evt) => {
                 const img = new Image();
-                img.onload = () => {
-                    coverImg = img;
-                    coverPreview.src = img.src;
-                    coverPreviewContainer.classList.remove('hidden');
-                    isSynthesized = false;
-                    synthesizeStatus.textContent = "未合成";
-                    synthesizeStatus.className = "text-[10px] font-bold text-orange-500 bg-white px-1.5 rounded border";
-                    draw();
-                    if(mockupImg) showStatus("「合成」ボタンを押してください", "blue");
-                };
+                img.onload = () => callback(img);
                 img.src = evt.target.result;
             };
             reader.readAsDataURL(file);
-        });
+        }
 
-        // --- 合成ロジック ---
+        // --- 合成ボタン ---
         btnSynthesize.addEventListener('click', () => {
-            if (!mockupImg) { alert("1. 背景画像を設定してください。"); return; }
+            if (!mockupImg) { alert("1. モックアップ画像を設定してください。"); return; }
             if (!coverImg) { alert("2. 表紙画像を選択してください。"); return; }
             if (points.length < 4) { alert("4つの角が指定されていません。"); return; }
 
             isSynthesized = true;
             synthesizeStatus.textContent = "合成済み";
-            synthesizeStatus.className = "text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 rounded border border-emerald-200";
-            
+            synthesizeStatus.className = "text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 border border-emerald-100";
+
             draw(); 
             showStatus("合成完了！ ダウンロード可能です", "green");
             btnDownload.disabled = false;
         });
 
-        // --- 描画関数 ---
-        function resizeCanvas() {
-            if(!mockupImg) return;
-            canvas.width = mockupImg.width;
-            canvas.height = mockupImg.height;
-            canvas.classList.remove('hidden');
-            placeholderText.classList.add('hidden');
-        }
-
+        // --- 描画ロジック ---
         function draw(drawControls = true) {
-            if (!ctx || !mockupImg) return;
+            if (!ctx) return;
+            
+            // 描画品質設定
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (mockupImg) ctx.drawImage(mockupImg, 0, 0);
+            else return;
 
-            // 1. 背景
-            ctx.drawImage(mockupImg, 0, 0);
-
-            // 2. 合成
             if (points.length === 4 && coverImg && isSynthesized) {
                 warpImage(coverImg, points);
             }
 
-            // 3. UI (未合成または編集中のみ表示)
             if (drawControls && points.length > 0 && !isSynthesized) {
-                // 線
                 ctx.lineWidth = 3;
                 ctx.strokeStyle = '#00ff00'; 
-                ctx.beginPath();
-                ctx.moveTo(points[0].x, points[0].y);
-                for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
-                if (points.length === 4) ctx.closePath();
-                ctx.stroke();
-
-                // 点
+                if (points.length > 1) {
+                    ctx.beginPath();
+                    ctx.moveTo(points[0].x, points[0].y);
+                    for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+                    if (points.length === 4) ctx.closePath();
+                    ctx.stroke();
+                }
                 points.forEach(p => {
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
                     ctx.fillStyle = 'rgba(255, 50, 50, 0.9)';
                     ctx.fill();
-                    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+                    ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
+                    ctx.shadowColor = "rgba(0,0,0,0.5)"; ctx.shadowBlur = 5;
                 });
+                ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
             }
         }
 
-        // --- 【重要】修正された変形ロジック ---
+        // --- 変形ロジック (継ぎ目完全消去版) ---
         function warpImage(img, pts) {
-            const subdivisions = 10; // 分割数（多いほど歪みが滑らか）
+            const subdivisions = 10; // 分割数
             
-            // 4隅の座標: TL, TR, BR, BL
             const p0 = pts[0];
             const p1 = pts[1];
             const p2 = pts[2];
             const p3 = pts[3];
             
-            const w = img.width;
-            const h = img.height;
+            const imgW = img.width;
+            const imgH = img.height;
+
+            // グリッド線対策: 
+            // 各タイルを描画する際、ソース座標はそのままで、
+            // 描画先(Destination)の三角形をわずかに(0.5px程度)大きくして重ね合わせる。
+            // 重ね合わせることで背景の透けを防ぐ。
+            const overlap = 0.02; // オーバーラップ係数
 
             for (let y = 0; y < subdivisions; y++) {
                 for (let x = 0; x < subdivisions; x++) {
-                    // グリッド座標 (0.0 ~ 1.0)
+                    // グリッド座標
                     const u0 = x / subdivisions;
                     const v0 = y / subdivisions;
                     const u1 = (x + 1) / subdivisions;
                     const v1 = (y + 1) / subdivisions;
 
-                    // ソース画像の切り抜き座標 (矩形)
-                    const sx = u0 * w;
-                    const sy = v0 * h;
-                    const sw = (u1 - u0) * w;
-                    const sh = (v1 - v0) * h;
+                    // ソース領域
+                    const sx = u0 * imgW;
+                    const sy = v0 * imgH;
+                    const sw = ((x + 1) / subdivisions - u0) * imgW;
+                    const sh = ((y + 1) / subdivisions - v0) * imgH;
 
-                    // 変換後の4点 (四角形)
-                    // バイリニア補間で座標を求める
-                    const dp0 = interpolate(p0, p1, p2, p3, u0, v0); // TL
-                    const dp1 = interpolate(p0, p1, p2, p3, u1, v0); // TR
-                    const dp2 = interpolate(p0, p1, p2, p3, u1, v1); // BR
-                    const dp3 = interpolate(p0, p1, p2, p3, u0, v1); // BL
+                    // 通常の頂点計算
+                    const d_tl = interpolate(p0, p1, p2, p3, u0, v0);
+                    const d_tr = interpolate(p0, p1, p2, p3, u1, v0);
+                    const d_br = interpolate(p0, p1, p2, p3, u1, v1);
+                    const d_bl = interpolate(p0, p1, p2, p3, u0, v1);
 
-                    // 1つの四角形を2つの三角形に分割して描画
-                    // 三角形1: TL-TR-BL (ソース: 左上, 右上, 左下)
-                    renderTriangle(
-                        ctx, img, 
-                        sx, sy,               // src x0, y0 (TL)
-                        sx + sw, sy,          // src x1, y1 (TR)
-                        sx, sy + sh,          // src x2, y2 (BL)
-                        dp0.x, dp0.y,         // dst x0, y0
-                        dp1.x, dp1.y,         // dst x1, y1
-                        dp3.x, dp3.y          // dst x2, y2
-                    );
-
-                    // 三角形2: TR-BR-BL (ソース: 右上, 右下, 左下)
-                    renderTriangle(
-                        ctx, img,
-                        sx + sw, sy,          // src x0, y0 (TR)
-                        sx + sw, sy + sh,     // src x1, y1 (BR)
-                        sx, sy + sh,          // src x2, y2 (BL)
-                        dp1.x, dp1.y,
-                        dp2.x, dp2.y,
-                        dp3.x, dp3.y
-                    );
+                    // 2つの三角形を描画
+                    // 三角形1 (左上 - 右上 - 左下)
+                    renderTriangle(ctx, img, sx, sy, sw, sh, d_tl, d_tr, d_bl, false);
+                    
+                    // 三角形2 (右上 - 右下 - 左下)
+                    renderTriangle(ctx, img, sx, sy, sw, sh, d_tr, d_br, d_bl, true);
                 }
             }
         }
 
         function interpolate(p0, p1, p2, p3, u, v) {
-            // 上辺と下辺の補間
+            // 上辺の点
             const topX = p0.x + (p1.x - p0.x) * u;
             const topY = p0.y + (p1.y - p0.y) * u;
+            // 下辺の点
             const bottomX = p3.x + (p2.x - p3.x) * u;
             const bottomY = p3.y + (p2.y - p3.y) * u;
-            // 縦方向の補間
+            // 縦補間
             const x = topX + (bottomX - topX) * v;
             const y = topY + (bottomY - topY) * v;
             return { x, y };
         }
 
-        // アフィン変換行列を計算して描画する関数
-        // src(sx0, sy0) -> dst(dx0, dy0) ... 3点の対応
-        function renderTriangle(ctx, img, sx0, sy0, sx1, sy1, sx2, sy2, dx0, dy0, dx1, dy1, dx2, dy2) {
+        function renderTriangle(ctx, img, sx, sy, sw, sh, p0, p1, p2, isBottomRight) {
             ctx.save();
 
-            // クリップパス設定（継ぎ目対策のため0.5px広げる）
+            // --- 1. クリップパスの設定 (隙間対策: 重心から拡大) ---
+            // 三角形の重心を計算
+            const cx = (p0.x + p1.x + p2.x) / 3;
+            const cy = (p0.y + p1.y + p2.y) / 3;
+            
+            // 拡大率 (1.0 ~ 1.05 程度で調整)
+            const s = 1.05; 
+            
             ctx.beginPath();
-            ctx.moveTo(dx0, dy0);
-            ctx.lineTo(dx1, dy1);
-            ctx.lineTo(dx2, dy2);
+            // 頂点を重心から外側にずらしてパスを作成
+            ctx.moveTo(cx + (p0.x - cx) * s, cy + (p0.y - cy) * s);
+            ctx.lineTo(cx + (p1.x - cx) * s, cy + (p1.y - cy) * s);
+            ctx.lineTo(cx + (p2.x - cx) * s, cy + (p2.y - cy) * s);
             ctx.closePath();
-            // 描画領域をわずかに拡張してクリップ（隙間を埋める重要処理）
-            ctx.lineWidth = 1; 
-            ctx.strokeStyle = 'rgba(0,0,0,0)'; // 透明な線を描いてパスを太らせる擬似効果
-            ctx.stroke();
             ctx.clip();
 
-            // アフィン変換行列の計算
-            // x_dst = a * x_src + c * y_src + e
-            // y_dst = b * x_src + d * y_src + f
-            const den = sx0 * (sy2 - sy1) - sx1 * sy2 + sx2 * sy1 + (sx1 - sx2) * sy0;
-            if (Math.abs(den) < 0.0001) { ctx.restore(); return; }
-
-            const a = (dx0 * (sy2 - sy1) - dx1 * sy2 + dx2 * sy1 + (dx1 - dx2) * sy0) / den;
-            const b = (dy0 * (sy2 - sy1) - dy1 * sy2 + dy2 * sy1 + (dy1 - dy2) * sy0) / den;
-            const c = (sx0 * (dx1 - dx2) - sx1 * dx0 + sx2 * dx0 + (sx1 - sx2) * dx1) / den * -1; // 符号注意
-            // cの計算式再確認: 
-            // c = (sx0*(dx2-dx1) - sx1*dx2 + sx2*dx1 + (sx1-sx2)*dx0) / den ではない
-            // 正しい式:
-            const c_corr = (dx1 * sy2 - dx2 * sy1 + dx0 * (sy1 - sy2) + (dx2 - dx1) * sy0) / den * -1; // 分子が違う
-            // シンプルな連立方程式の解を利用:
+            // --- 2. アフィン変換行列の計算 ---
+            // ソース座標をターゲット座標へマップする
+            // 三角形の向きによって対応するソース頂点が異なるため、isBottomRightフラグで分岐
             
-            const m11 = sx0, m12 = sy0, m13 = 1;
-            const m21 = sx1, m22 = sy1, m23 = 1;
-            const m31 = sx2, m32 = sy2, m33 = 1;
-            // 逆行列を使って a,c,e と b,d,f を求めるのが確実
+            // ソース画像の3点 (正規化前の座標)
+            // 三角形1 (TL-TR-BL): (sx, sy), (sx+sw, sy), (sx, sy+sh)
+            // 三角形2 (TR-BR-BL): (sx+sw, sy), (sx+sw, sy+sh), (sx, sy+sh)
             
-            // ここでは高速化のため、Canvas特有の計算式を使用
-            // Transform Matrix:
-            // [ a c e ]
-            // [ b d f ]
-            // [ 0 0 1 ]
+            let x0, y0, x1, y1, x2, y2;
             
-            const A = -(sy0 * (dx2 - dx1) - sy1 * dx2 + sy2 * dx1 + (sy1 - sy2) * dx0) / den;
-            const B = -(sy0 * (dy2 - dy1) - sy1 * dy2 + sy2 * dy1 + (sy1 - sy2) * dy0) / den;
-            const C = (sx0 * (dx2 - dx1) - sx1 * dx2 + sx2 * dx1 + (sx1 - sx2) * dx0) / den;
-            const D = (sx0 * (dy2 - dy1) - sx1 * dy2 + sx2 * dy1 + (sx1 - sx2) * dy0) / den;
-            const E = (sx0 * (sy2 * dx1 - sy1 * dx2) + sy0 * (sx1 * dx2 - sx2 * dx1) + (sx2 * sy1 - sx1 * sy2) * dx0) / den;
-            const F = (sx0 * (sy2 * dy1 - sy1 * dy2) + sy0 * (sx1 * dy2 - sx2 * dy1) + (sx2 * sy1 - sx1 * sy2) * dy0) / den;
+            if (!isBottomRight) {
+                // 三角形1: 左上(p0) - 右上(p1) - 左下(p2)
+                x0 = sx;      y0 = sy;
+                x1 = sx + sw; y1 = sy;
+                x2 = sx;      y2 = sy + sh;
+            } else {
+                // 三角形2: 右上(p0) - 右下(p1) - 左下(p2)
+                x0 = sx + sw; y0 = sy;
+                x1 = sx + sw; y1 = sy + sh;
+                x2 = sx;      y2 = sy + sh;
+            }
 
-            ctx.transform(A, B, C, D, E, F);
+            // 行列計算
+            const den = x0 * (y2 - y1) - x1 * y2 + x2 * y1 + (x1 - x2) * y0;
+            if (Math.abs(den) < 0.001) { ctx.restore(); return; }
 
-            // ソース画像の描画
-            // 画像全体を描画すると重い＆変換範囲外が出る可能性があるため、
-            // 必要な矩形部分だけを描画してもよいが、クリップされているので全体描画でOK
+            const a = -(y0 * (p2.x - p1.x) - y1 * p2.x + y2 * p1.x + (y1 - y2) * p0.x) / den;
+            const b = -(y0 * (p2.y - p1.y) - y1 * p2.y + y2 * p1.y + (y1 - y2) * p0.y) / den;
+            const c = (x0 * (p2.x - p1.x) - x1 * p2.x + x2 * p1.x + (x1 - x2) * p0.x) / den;
+            const d = (x0 * (p2.y - p1.y) - x1 * p2.y + x2 * p1.y + (x1 - x2) * p0.y) / den;
+            const e = (x0 * (y2 * p1.x - y1 * p2.x) + y0 * (x1 * p2.x - x2 * p1.x) + (x2 * y1 - x1 * y2) * p0.x) / den;
+            const f = (x0 * (y2 * p1.y - y1 * p2.y) + y0 * (x1 * p2.y - x2 * p1.y) + (x2 * y1 - x1 * y2) * p0.y) / den;
+
+            ctx.transform(a, b, c, d, e, f);
+
+            // 画像描画
+            // クリップされているので全体を描画しても問題ないが、
+            // パフォーマンスのためには本来必要部分だけでも良い。ここでは安全に全体。
             ctx.drawImage(img, 0, 0);
             
             ctx.restore();
         }
 
-        // --- 赤点検出 ---
+        // --- ヘルパー ---
         function detectRedDots(img) {
             const w = img.width; const h = img.height;
             const tCvs = document.createElement('canvas'); tCvs.width = w; tCvs.height = h;
@@ -468,6 +526,7 @@
             for (let y = 0; y < h; y++) {
                 for (let x = 0; x < w; x++) {
                     const i = (y * w + x) * 4;
+                    // R>200, G<60, B<60 で赤色を判定
                     if (data[i] > 200 && data[i+1] < 60 && data[i+2] < 60) {
                          const isNear = found.some(p => Math.abs(p.x - x) < w*0.01 && Math.abs(p.y - y) < h*0.01);
                          if (!isNear) found.push({x,y});
@@ -484,19 +543,27 @@
             return false;
         }
 
-        // --- UIヘルパー ---
+        function resizeCanvasToImage(img) {
+            canvas.width = img.width; canvas.height = img.height;
+            canvas.classList.remove('hidden'); placeholderText.classList.add('hidden');
+        }
+
         function showStatus(msg, color) {
             if (!msg) { statusBox.classList.add('hidden'); return; }
-            statusBox.classList.remove('hidden', 'bg-blue-50', 'border-blue-200', 'bg-green-50', 'border-green-200');
-            statusBox.classList.add(color === 'green' ? 'bg-green-50' : 'bg-blue-50');
-            statusBox.classList.add(color === 'green' ? 'border-green-200' : 'border-blue-200');
+            statusBox.classList.remove('hidden', 'bg-blue-50', 'border-blue-200', 'bg-green-50', 'border-green-200', 'bg-emerald-50', 'border-emerald-200');
+            statusMessage.className = "text-sm font-bold flex items-center gap-2";
             
-            const textCol = color === 'green' ? 'text-emerald-700' : 'text-indigo-700';
-            statusMessage.className = `text-xs font-bold ${textCol}`;
+            if (color === 'blue') { 
+                statusBox.classList.add('bg-indigo-50', 'border-indigo-200'); 
+                statusMessage.classList.add('text-indigo-800'); 
+            } else if (color === 'green') { 
+                statusBox.classList.add('bg-emerald-50', 'border-emerald-200'); 
+                statusMessage.classList.add('text-emerald-800'); 
+            }
             statusMessage.textContent = msg;
         }
 
-        // --- マウス操作 ---
+        // マウス操作
         function getPos(e) {
             const r = canvas.getBoundingClientRect();
             const sx = canvas.width / r.width; const sy = canvas.height / r.height;
@@ -510,7 +577,7 @@
             if (isSynthesized) {
                 isSynthesized = false;
                 synthesizeStatus.textContent = "調整中";
-                synthesizeStatus.className = "text-[10px] font-bold text-orange-500 bg-white px-1.5 rounded border";
+                synthesizeStatus.className = "text-xs font-bold text-orange-500 bg-orange-50 px-2 py-0.5 border border-orange-100";
                 showStatus("調整後に再度「合成」ボタンを押してください", "blue");
                 draw();
                 return;
@@ -529,27 +596,25 @@
                 canvas.style.cursor = isNear ? 'move' : (points.length < 4 ? 'crosshair' : 'default');
             }
         });
-        
         const endDrag = () => { isDragging=false; dragPointIndex=-1; };
-        canvas.addEventListener('mouseup', endDrag); 
-        canvas.addEventListener('mouseleave', endDrag);
-        canvas.addEventListener('touchstart', e => { if(e.touches.length==1) handleStart({touches:e.touches, preventDefault:()=>{}}); }, {passive:false});
+        canvas.addEventListener('mouseup', endDrag); canvas.addEventListener('mouseleave', endDrag);
 
         btnReset.addEventListener('click', () => {
             points=[]; mockupImg=null; coverImg=null; isSynthesized=false;
             inputMockup.value=''; inputCover.value=''; coverPreviewContainer.classList.add('hidden');
             canvas.classList.add('hidden'); placeholderText.classList.remove('hidden');
-            showStatus("", ""); synthesizeStatus.textContent="未合成";
+            showStatus("", ""); synthesizeStatus.textContent="未合成"; 
+            synthesizeStatus.className = "text-xs font-bold text-orange-500 bg-orange-50 px-2 py-0.5 border border-orange-100";
             btnDownload.disabled=true;
-            Array.from(sampleContainer.children).forEach(c => c.classList.remove('border-emerald-500', 'ring-2'));
+            Array.from(sampleContainer.children).forEach(c => {
+                c.classList.remove('border-emerald-500', 'ring-2', 'ring-emerald-200');
+                c.classList.add('border-transparent');
+            });
         });
         
         btnDownload.addEventListener('click', () => {
             draw(false); 
-            const link = document.createElement('a'); 
-            link.download = 'mockup_result.png'; 
-            link.href = canvas.toDataURL('image/png'); 
-            link.click();
+            const link = document.createElement('a'); link.download = 'mockup_result.png'; link.href = canvas.toDataURL('image/png'); link.click();
             draw(true);
         });
     </script>
