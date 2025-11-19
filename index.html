@@ -15,7 +15,7 @@
         }
         canvas { touch-action: none; }
 
-        /* --- ボタン --- */
+        /* --- ボタン（角丸あり） --- */
         .btn-rich {
             position: relative;
             overflow: hidden;
@@ -78,12 +78,13 @@
             border-radius: 12px;
         }
 
-        /* ファイル入力 (枠なし) */
+        /* ファイル入力 (枠なし・角なし) */
         input[type="file"] {
             background-color: transparent;
             border: none;
             border-radius: 0;
             padding: 0;
+            width: 100%;
         }
         input[type="file"]::file-selector-button {
             border-radius: 0; border: none;
@@ -209,7 +210,7 @@
 
     <!-- JavaScript -->
     <script>
-        // --- 設定: サンプル画像リスト (大文字小文字両対応) ---
+        // --- 設定: サンプル画像リスト (大文字小文字対応) ---
         const SAMPLE_FILES = [
             "1.png", "1.PNG",
             "2.png", "2.PNG",
@@ -219,6 +220,7 @@
             "6.png", "6.PNG"
         ];
 
+        // --- 変数 ---
         const canvas = document.getElementById('mainCanvas');
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
         const inputMockup = document.getElementById('inputMockup');
@@ -272,7 +274,7 @@
         function loadMockupFromUrl(url) {
             const img = new Image();
             img.onload = () => { handleMockupLoad(img); inputMockup.value = ''; };
-            img.onerror = () => { /* エラー時は何もしない */ };
+            img.onerror = () => { /* エラー時は無視 */ };
             img.src = url;
         }
 
@@ -339,15 +341,16 @@
             btnDownload.disabled = false;
         });
 
-        // --- 描画 ---
+        // --- 描画ロジック ---
         function draw(drawControls = true) {
             if (!ctx) return;
             
-            // 描画品質を上げる設定
+            // 描画品質設定
             ctx.imageSmoothingEnabled = true;
             ctx.imageSmoothingQuality = 'high';
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
             if (mockupImg) ctx.drawImage(mockupImg, 0, 0);
             else return;
 
@@ -355,7 +358,7 @@
                 warpImage(coverImg, points);
             }
 
-            // 合成済みでも未調整時やドラッグ中は線を表示
+            // 合成済みでない場合、または調整中は線を表示
             if (drawControls && points.length > 0 && !isSynthesized) {
                 ctx.lineWidth = 3;
                 ctx.strokeStyle = '#00ff00'; 
@@ -378,36 +381,38 @@
             }
         }
 
-        // --- 変形ロジック (継ぎ目完全消去版) ---
+        // --- 画像変形ロジック (継ぎ目対策強化版) ---
         function warpImage(img, pts) {
+            // グリッド数 (5x5)
             const subdivisions = 5;
-            const p0 = pts[0]; const p1 = pts[1];
-            const p2 = pts[2]; const p3 = pts[3];
-            const imgW = img.width; const imgH = img.height;
-            
-            // 継ぎ目対策: オーバーラップ量を増やす (0.02程度)
-            const overlap = 0.02; 
+            const p0 = pts[0]; // TopLeft
+            const p1 = pts[1]; // TopRight
+            const p2 = pts[2]; // BottomRight
+            const p3 = pts[3]; // BottomLeft
+            const imgW = img.width; 
+            const imgH = img.height;
 
             for (let y = 0; y < subdivisions; y++) {
                 for (let x = 0; x < subdivisions; x++) {
                     const u1 = x / subdivisions;
                     const v1 = y / subdivisions;
-                    // 少し大きく取る
-                    const u2 = (x + 1) / subdivisions + overlap;
-                    const v2 = (y + 1) / subdivisions + overlap;
+                    const u2 = (x + 1) / subdivisions;
+                    const v2 = (y + 1) / subdivisions;
 
+                    // ソース領域
                     const sx = u1 * imgW;
                     const sy = v1 * imgH;
-                    // ソース領域も正確に
                     const sw = ((x + 1) / subdivisions - u1) * imgW;
                     const sh = ((y + 1) / subdivisions - v1) * imgH;
 
+                    // 変換先座標を計算
                     const d1 = interpolate(p0, p1, p2, p3, u1, v1);
-                    const d2 = interpolate(p0, p1, p2, p3, u2, v1); 
+                    const d2 = interpolate(p0, p1, p2, p3, u2, v1);
                     const d3 = interpolate(p0, p1, p2, p3, u2, v2);
                     const d4 = interpolate(p0, p1, p2, p3, u1, v2);
 
-                    // グリッド線を消すため、描画領域(クリップパス)を広げて描画する
+                    // 2つの三角形に分割して描画
+                    // renderTriangleの内部でクリップ領域を拡大して継ぎ目を消す
                     renderTriangle(img, sx, sy, sw, sh, d1, d2, d4); // 上三角
                     renderTriangle(img, sx, sy, sw, sh, d2, d3, d4); // 下三角
                 }
@@ -415,61 +420,23 @@
         }
 
         function interpolate(p0, p1, p2, p3, u, v) {
-            const topX = p0.x + (p1.x - p0.x) * u; 
+            // バイリニア補間による座標計算
+            const topX = p0.x + (p1.x - p0.x) * u;
             const topY = p0.y + (p1.y - p0.y) * u;
-            const bottomX = p3.x + (p2.x - p3.x) * u; 
+            const bottomX = p3.x + (p2.x - p3.x) * u;
             const bottomY = p3.y + (p2.y - p3.y) * u;
             return { x: topX + (bottomX - topX) * v, y: topY + (bottomY - topY) * v };
         }
 
-        // 修正版 renderTriangle (クリップ拡張入り)
-        function renderTriangle(img, sx0, sy0, sx1, sy1, sx2, sy2, dp0, dp1, dp2) {
-            ctx.save();
-
-            // 1. クリップパスの設定 (隙間対策: 重心から拡大)
-            const cx = (dp0.x + dp1.x + dp2.x) / 3;
-            const cy = (dp0.y + dp1.y + dp2.y) / 3;
-            // 拡大率を少し大きめに設定 (1.05)
-            const s = 1.05; 
-            
-            ctx.beginPath();
-            ctx.moveTo(cx + (dp0.x - cx)*s, cy + (dp0.y - cy)*s);
-            ctx.lineTo(cx + (dp1.x - cx)*s, cy + (dp1.y - cy)*s);
-            ctx.lineTo(cx + (dp2.x - cx)*s, cy + (dp2.y - cy)*s);
-            ctx.closePath();
-            ctx.clip();
-
-            // 2. アフィン変換 (引数の互換性のため、元のロジックを適応)
-            // warpImageから呼び出される際の引数が前回と異なるため、
-            // ここでは sx0, sy0... ではなく img全体を描画する方式を使用
-            // sx0, sy0, sx1... は無視し、warpImage側で全体を描画していると仮定したアフィン変換を行う
-            
-            // ※ warpImageの実装で renderTriangle の引数が (img, sx, sy, sw, sh, d1, d2, d4) になっていません。
-            // warpImage内で渡している引数は (img, sx, sy, sw, sh, d1, d2, d4) ですが、
-            // renderTriangleの定義は (img, sx0, sy0, sx1... dp2) となっています。
-            // この不整合を修正するため、以下のように実装を統合します。
-
-            // 呼び出し元からの引数を正しくマッピングするために、argumentsを使うか定義を直す必要がありますが
-            // ここでは warpImage 側での呼び出しに合わせて renderTriangle を再定義します。
-            
-            // 正しい実装: (img, sx, sy, sw, sh, p0, p1, p2)
-            // p0, p1, p2 はターゲット座標
-            // ソースは (sx, sy, sw, sh) の矩形全体をマップする（簡易実装）
-            // これにより、renderTriangleのシグネチャを変更します。
-        }
-
-        // 上記の renderTriangle は引数が合わないため、
-        // warpImage から呼ばれる引数 (img, sx, sy, sw, sh, p0, p1, p2) に合わせた関数にします。
-        // JSの関数オーバーロードはないため、名前をそのまま使って中身を書き換えます。
-        
-        // --- 修正版 renderTriangle (引数構成変更) ---
+        // --- 三角形描画関数 (安全対策済み) ---
         function renderTriangle(img, sx, sy, sw, sh, p0, p1, p2) {
             ctx.save();
 
-            // 1. クリップパス (拡大)
+            // 1. クリップパスの設定 (隙間対策)
+            // 重心から外側にわずかに(3%)拡大する
             const cx = (p0.x + p1.x + p2.x) / 3;
             const cy = (p0.y + p1.y + p2.y) / 3;
-            const s = 1.05; 
+            const s = 1.03; 
 
             ctx.beginPath();
             ctx.moveTo(cx + (p0.x - cx)*s, cy + (p0.y - cy)*s);
@@ -478,32 +445,19 @@
             ctx.closePath();
             ctx.clip();
 
-            // 2. アフィン変換計算
-            // ソース (sx,sy) -> p0, (sx+sw,sy) -> p1, (sx,sy+sh) -> p2 と仮定して解く
-            // ただし、三角形の向きによってソースの頂点が異なる。
-            // 上三角: (sx,sy)->p0, (sx+sw,sy)->p1, (sx,sy+sh)->p2 (※warpImageのd1,d2,d4の順序に対応)
-            // 下三角: (sx,sy)ではなく (sx+sw,sy)->p0, (sx+sw,sy+sh)->p1, (sx,sy+sh)->p2 (d2,d3,d4)
-            // しかし関数内では区別がつかないため、汎用的な解法を使う。
+            // 2. アフィン変換行列の計算
+            // (sx, sy) -> p0, (sx+sw, sy) -> p1, (sx, sy+sh) -> p2 の対応関係を解く
+            // ソース矩形の3点 (左上, 右上, 左下) をターゲットの p0, p1, p2 にマップする
+            // これにより、三角形の形状に歪ませる
             
-            // 既存のコードは以下のような行列計算をしていた。これを利用する。
-            // (sx, sy) -> p0
-            // (sx + sw, sy) -> p1
-            // (sx, sy + sh) -> p2 
-            // (これは直角三角形を想定。p0-p1-p2が直角三角形の頂点に対応)
-            
-            // ここではシンプルに、img全体を描画し、それをクリップで切り抜くアプローチをとる。
-            // 計算式:
             const x0 = sx, y0 = sy;
             const x1 = sx + sw, y1 = sy;
             const x2 = sx, y2 = sy + sh;
-            
-            // アフィン変換: src(x,y) -> dst(x,y)
-            // dstX = a*srcX + c*srcY + e
-            // dstY = b*srcX + d*srcY + f
-            
-            // 連立方程式を解く (Cramer's rule的なもの)
+
             const den = x0 * (y2 - y1) - x1 * y2 + x2 * y1 + (x1 - x2) * y0;
-            if (den === 0) { ctx.restore(); return; }
+            
+            // ゼロ除算ガード
+            if (Math.abs(den) < 0.001) { ctx.restore(); return; }
 
             const a = -(y0 * (p2.x - p1.x) - y1 * p2.x + y2 * p1.x + (y1 - y2) * p0.x) / den;
             const b = -(y0 * (p2.y - p1.y) - y1 * p2.y + y2 * p1.y + (y1 - y2) * p0.y) / den;
@@ -512,23 +466,29 @@
             const e = (x0 * (y2 * p1.x - y1 * p2.x) + y0 * (x1 * p2.x - x2 * p1.x) + (x2 * y1 - x1 * y2) * p0.x) / den;
             const f = (x0 * (y2 * p1.y - y1 * p2.y) + y0 * (x1 * p2.y - x2 * p1.y) + (x2 * y1 - x1 * y2) * p0.y) / den;
 
+            // 行列適用
             ctx.transform(a, b, c, d, e, f);
+
+            // ソース画像全体を描画 (クリップ領域外は描画されない)
             ctx.drawImage(img, 0, 0);
+            
             ctx.restore();
         }
 
         // --- ヘルパー ---
         function detectRedDots(img) {
             const w = img.width; const h = img.height;
+            // 解析用の一時Canvas
             const tCvs = document.createElement('canvas'); tCvs.width = w; tCvs.height = h;
             const tCtx = tCvs.getContext('2d'); tCtx.drawImage(img, 0, 0);
             const data = tCtx.getImageData(0, 0, w, h).data;
             const found = [];
 
+            // 簡易高速スキャン (全画素チェック)
             for (let y = 0; y < h; y++) {
                 for (let x = 0; x < w; x++) {
                     const i = (y * w + x) * 4;
-                    // R>200, G<60, B<60 で赤色を判定
+                    // 赤色判定: R>200, G<60, B<60
                     if (data[i] > 200 && data[i+1] < 60 && data[i+2] < 60) {
                          const isNear = found.some(p => Math.abs(p.x - x) < w*0.01 && Math.abs(p.y - y) < h*0.01);
                          if (!isNear) found.push({x,y});
