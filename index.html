@@ -221,7 +221,6 @@
             "6.png", "6.PNG"
         ];
 
-        // --- 変数 ---
         const canvas = document.getElementById('mainCanvas');
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
         const inputMockup = document.getElementById('inputMockup');
@@ -366,10 +365,16 @@
             if (mockupImg) ctx.drawImage(mockupImg, 0, 0);
             else return;
 
+            // ★合成実行時、画像の赤点を消す
+            if (isSynthesized && points.length === 4) {
+                removeRedMarkers(ctx, points);
+            }
+
             if (points.length === 4 && coverImg && isSynthesized) {
                 warpImage(coverImg, points);
             }
 
+            // 合成済みでも未調整時やドラッグ中は線を表示
             if (drawControls && points.length > 0 && !isSynthesized) {
                 ctx.lineWidth = 3;
                 ctx.strokeStyle = '#00ff00'; 
@@ -392,6 +397,67 @@
             }
         }
 
+        // ★★★ 赤い点を消す関数 ★★★
+        function removeRedMarkers(ctx, pts) {
+            const radius = 15; // 消去する範囲の半径
+            pts.forEach(p => {
+                const startX = Math.max(0, Math.floor(p.x - radius));
+                const startY = Math.max(0, Math.floor(p.y - radius));
+                const size = radius * 2;
+                
+                try {
+                    // 周辺のピクセルデータを取得
+                    const imgData = ctx.getImageData(startX, startY, size, size);
+                    const data = imgData.data;
+                    let rSum = 0, gSum = 0, bSum = 0, count = 0;
+                    
+                    // 1. 「赤くない」ピクセルの平均色を計算
+                    for (let i = 0; i < data.length; i += 4) {
+                        const r = data[i];
+                        const g = data[i+1];
+                        const b = data[i+2];
+                        
+                        // 赤色の判定 (検出時と同じ閾値)
+                        const isRed = (r > 180 && g < 80 && b < 80); 
+                        
+                        if (!isRed) {
+                            rSum += r;
+                            gSum += g;
+                            bSum += b;
+                            count++;
+                        }
+                    }
+                    
+                    if (count > 0) {
+                        const avgR = Math.floor(rSum / count);
+                        const avgG = Math.floor(gSum / count);
+                        const avgB = Math.floor(bSum / count);
+                        
+                        // 2. 赤いピクセルだけを平均色で塗りつぶす
+                        for (let i = 0; i < data.length; i += 4) {
+                            const r = data[i];
+                            const g = data[i+1];
+                            const b = data[i+2];
+                            
+                            const isRed = (r > 180 && g < 80 && b < 80);
+                            
+                            if (isRed) {
+                                data[i] = avgR;
+                                data[i+1] = avgG;
+                                data[i+2] = avgB;
+                                // alphaはそのまま
+                            }
+                        }
+                        
+                        // 書き戻す
+                        ctx.putImageData(imgData, startX, startY);
+                    }
+                } catch(e) {
+                    // キャンバス外にはみ出した場合のエラー回避
+                }
+            });
+        }
+
         // --- 変形ロジック (継ぎ目完全消去版) ---
         function warpImage(img, pts) {
             const subdivisions = 10; // 分割数
@@ -405,49 +471,36 @@
             const imgH = img.height;
 
             // グリッド線対策: 
-            // 各タイルを描画する際、ソース座標はそのままで、
-            // 描画先(Destination)の三角形をわずかに(0.5px程度)大きくして重ね合わせる。
-            // 重ね合わせることで背景の透けを防ぐ。
             const overlap = 0.02; // オーバーラップ係数
 
             for (let y = 0; y < subdivisions; y++) {
                 for (let x = 0; x < subdivisions; x++) {
-                    // グリッド座標
                     const u0 = x / subdivisions;
                     const v0 = y / subdivisions;
                     const u1 = (x + 1) / subdivisions;
                     const v1 = (y + 1) / subdivisions;
 
-                    // ソース領域
                     const sx = u0 * imgW;
                     const sy = v0 * imgH;
                     const sw = ((x + 1) / subdivisions - u0) * imgW;
                     const sh = ((y + 1) / subdivisions - v0) * imgH;
 
-                    // 通常の頂点計算
                     const d_tl = interpolate(p0, p1, p2, p3, u0, v0);
                     const d_tr = interpolate(p0, p1, p2, p3, u1, v0);
                     const d_br = interpolate(p0, p1, p2, p3, u1, v1);
                     const d_bl = interpolate(p0, p1, p2, p3, u0, v1);
 
-                    // 2つの三角形を描画
-                    // 三角形1 (左上 - 右上 - 左下)
                     renderTriangle(ctx, img, sx, sy, sw, sh, d_tl, d_tr, d_bl, false);
-                    
-                    // 三角形2 (右上 - 右下 - 左下)
                     renderTriangle(ctx, img, sx, sy, sw, sh, d_tr, d_br, d_bl, true);
                 }
             }
         }
 
         function interpolate(p0, p1, p2, p3, u, v) {
-            // 上辺の点
             const topX = p0.x + (p1.x - p0.x) * u;
             const topY = p0.y + (p1.y - p0.y) * u;
-            // 下辺の点
             const bottomX = p3.x + (p2.x - p3.x) * u;
             const bottomY = p3.y + (p2.y - p3.y) * u;
-            // 縦補間
             const x = topX + (bottomX - topX) * v;
             const y = topY + (bottomY - topY) * v;
             return { x, y };
@@ -456,45 +509,31 @@
         function renderTriangle(ctx, img, sx, sy, sw, sh, p0, p1, p2, isBottomRight) {
             ctx.save();
 
-            // --- 1. クリップパスの設定 (隙間対策: 重心から拡大) ---
-            // 三角形の重心を計算
+            // 1. クリップパスの設定 (隙間対策: 重心から拡大)
             const cx = (p0.x + p1.x + p2.x) / 3;
             const cy = (p0.y + p1.y + p2.y) / 3;
-            
-            // 拡大率 (1.0 ~ 1.05 程度で調整)
             const s = 1.05; 
             
             ctx.beginPath();
-            // 頂点を重心から外側にずらしてパスを作成
             ctx.moveTo(cx + (p0.x - cx) * s, cy + (p0.y - cy) * s);
             ctx.lineTo(cx + (p1.x - cx) * s, cy + (p1.y - cy) * s);
             ctx.lineTo(cx + (p2.x - cx) * s, cy + (p2.y - cy) * s);
             ctx.closePath();
             ctx.clip();
 
-            // --- 2. アフィン変換行列の計算 ---
-            // ソース座標をターゲット座標へマップする
-            // 三角形の向きによって対応するソース頂点が異なるため、isBottomRightフラグで分岐
-            
-            // ソース画像の3点 (正規化前の座標)
-            // 三角形1 (TL-TR-BL): (sx, sy), (sx+sw, sy), (sx, sy+sh)
-            // 三角形2 (TR-BR-BL): (sx+sw, sy), (sx+sw, sy+sh), (sx, sy+sh)
-            
+            // 2. アフィン変換行列の計算
             let x0, y0, x1, y1, x2, y2;
             
             if (!isBottomRight) {
-                // 三角形1: 左上(p0) - 右上(p1) - 左下(p2)
                 x0 = sx;      y0 = sy;
                 x1 = sx + sw; y1 = sy;
                 x2 = sx;      y2 = sy + sh;
             } else {
-                // 三角形2: 右上(p0) - 右下(p1) - 左下(p2)
                 x0 = sx + sw; y0 = sy;
                 x1 = sx + sw; y1 = sy + sh;
                 x2 = sx;      y2 = sy + sh;
             }
 
-            // 行列計算
             const den = x0 * (y2 - y1) - x1 * y2 + x2 * y1 + (x1 - x2) * y0;
             if (Math.abs(den) < 0.001) { ctx.restore(); return; }
 
@@ -506,10 +545,6 @@
             const f = (x0 * (y2 * p1.y - y1 * p2.y) + y0 * (x1 * p2.y - x2 * p1.y) + (x2 * y1 - x1 * y2) * p0.y) / den;
 
             ctx.transform(a, b, c, d, e, f);
-
-            // 画像描画
-            // クリップされているので全体を描画しても問題ないが、
-            // パフォーマンスのためには本来必要部分だけでも良い。ここでは安全に全体。
             ctx.drawImage(img, 0, 0);
             
             ctx.restore();
@@ -526,7 +561,6 @@
             for (let y = 0; y < h; y++) {
                 for (let x = 0; x < w; x++) {
                     const i = (y * w + x) * 4;
-                    // R>200, G<60, B<60 で赤色を判定
                     if (data[i] > 200 && data[i+1] < 60 && data[i+2] < 60) {
                          const isNear = found.some(p => Math.abs(p.x - x) < w*0.01 && Math.abs(p.y - y) < h*0.01);
                          if (!isNear) found.push({x,y});
